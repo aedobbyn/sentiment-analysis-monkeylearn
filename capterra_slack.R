@@ -80,13 +80,24 @@ first_three_ratings <-
 clean_content <- function(t) {
   out <- t %>% 
     t %>% 
-    str_extract("(?<=Pros).*?(?=Cons)") %>% 
-    str_replace_all("[,\\.;:-]", "")
+    str_replace_all("[,;:-]", "") %>%   # Remove punctuation except periods
+    str_replace_all("[ ]{2,}", "")   # Remove more than 1 space
+  
+  return(out)
 }
 
 
+split_pro_cons <- function(t) {
+  out <- t %>% 
+    mutate(
+      content = content %>% clean_content(),
+      pros = str_extract(content, "(?<=Pros).*?(?=Cons)"),
+      cons = str_extract(content, "(?<=Cons).*")
+    )
+  return(out)
+}
 
 
-
+first_three_ratings[1,] %>% split_pro_cons()
 
 
