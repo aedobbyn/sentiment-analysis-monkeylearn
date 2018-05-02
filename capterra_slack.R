@@ -1,6 +1,7 @@
 library(tidyverse)
 library(rvest)
 library(dobtools)
+library(glue)
 
 slack_url <- "https://www.capterra.com/p/135003/Slack/"
 
@@ -35,9 +36,57 @@ single_rating <- slack_url %>%
 
 single_content <- slack_url %>% 
   read_html() %>% 
-  html_nodes(".cell-review:nth-child(6) .palm-one-whole") %>% 
+  html_nodes(".cell-review:nth-child(20) .color-text") %>% 
   html_text() %>% 
   str_replace_all("\\n", "") %>% 
   trimws() 
+
+
+
+get_ratings_and_content <- function(url, n_reviews) {
+  out <- tibble()
+  
+  for (i in seq(n_reviews)) {
+    this_rating <- url %>% 
+      read_html() %>% 
+      html_nodes(glue("#review-{i} .overall-rating")) %>% 
+      html_text() %>% 
+      str_replace_all("\\n", "") %>% 
+      trimws() 
+
+    this_cont <- url %>% 
+      read_html() %>% 
+      html_nodes(glue(".cell-review:nth-child({i}) .color-text")) %>% 
+      html_text() %>% 
+      str_replace_all("\\n", "") %>% 
+      trimws() 
+
+    this_review <- tibble(
+      rating = this_rating,
+      content = this_cont
+    )
+    
+    out <- out %>% 
+      bind_rows(this_review)
+  }
+  return(out)
+}
+
+first_three_ratings <- 
+  get_ratings_and_content(slack_url, 3)
+
+
+
+clean_content <- function(t) {
+  out <- t %>% 
+    t %>% 
+    str_extract("(?<=Pros).*?(?=Cons)") %>% 
+    str_replace_all("[,\\.;:-]", "")
+}
+
+
+
+
+
 
 
