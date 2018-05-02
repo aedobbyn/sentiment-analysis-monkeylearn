@@ -5,26 +5,29 @@ library(glue)
 
 slack_url <- "https://www.capterra.com/p/135003/Slack/"
 
-slack_rating_pre <- slack_url %>% 
+# ------------
+
+# Get overall rating 
+slack_rating_overall <- slack_url %>% 
   read_html() %>% 
   html_nodes(".epsilon .rating-decimal") %>% 
   html_text() %>% 
   str_replace_all("\\n", "") %>% 
   trimws() %>% 
   str_split(pattern = " ") %>%
-  as_vector()
-
-slack_rating_overall <- slack_rating_pre[1] %>% 
+  as_vector() %>% 
+  `[`(1) %>%    # Grab the first element in the vector
   as.numeric()
 
-
-
+# Get a vector of individual ratings
 slack_all_ratings <- slack_url %>% 
   read_html() %>% 
   html_nodes(".overall-rating") %>% 
   html_text() %>% 
   str_replace_all("\\n", "") %>% 
   trimws() 
+
+# -------------
 
 
 single_rating <- slack_url %>% 
@@ -69,12 +72,9 @@ get_ratings_and_content <- function(url, n_reviews) {
     out <- out %>% 
       bind_rows(this_review)
   }
+  
   return(out)
 }
-
-first_three_ratings <- 
-  get_ratings_and_content(slack_url, 3)
-
 
 
 clean_content <- function(t) {
@@ -91,13 +91,32 @@ split_pro_cons <- function(t) {
   out <- t %>% 
     mutate(
       content = content %>% clean_content(),
-      pros = str_extract(content, "(?<=Pros).*?(?=Cons)"),
-      cons = str_extract(content, "(?<=Cons).*")
+      pros = str_extract(content, "(?<=Pros).*?(?=Cons)")
     )
+  
+  if (str_detect(t$content, "Overall:")) {
+    out <- out %>% 
+      mutate(
+        cons = str_extract(content, "(?<=Cons).*?(?=Overall)"),
+        overall = str_extract(content, "(?<=Overall).*")
+      )
+  } else {
+    out <- out %>% 
+      mutate(
+        cons = str_extract(content, "(?<=Cons).*"),
+        overall = NA_character_
+      )
+  }
   return(out)
 }
 
 
-first_three_ratings[1,] %>% split_pro_cons()
+
+first_three_ratings <- 
+  get_ratings_and_content(slack_url, 3)
+
+first_tbl <- 
+  first_three_ratings[1,] %>% 
+  split_pro_cons()
 
 
