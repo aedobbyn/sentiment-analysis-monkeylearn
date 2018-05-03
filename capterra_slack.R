@@ -29,20 +29,26 @@ slack_all_ratings <- slack_url %>%
 
 # -------------
 
+strip_whitespace_newlines <- function(t) {
+  out <- t %>% 
+    str_replace_all("\\n", " ") %>% 
+    trimws() 
+  
+  return(out)
+}
+
 
 single_rating <- slack_url %>% 
   read_html() %>% 
   html_nodes("#review-4 .overall-rating") %>% 
   html_text() %>% 
-  str_replace_all("\\n", "") %>% 
-  trimws() 
+  strip_whitespace_newlines()
 
 single_content <- slack_url %>% 
   read_html() %>% 
-  html_nodes(".cell-review:nth-child(20) .color-text") %>% 
+  html_nodes(".cell-review:nth-child(31) .color-text") %>% 
   html_text() %>% 
-  str_replace_all("\\n", "") %>% 
-  trimws() 
+  strip_whitespace_newlines()
 
 
 
@@ -54,15 +60,13 @@ get_ratings_and_content <- function(url, n_reviews) {
       read_html() %>% 
       html_nodes(glue("#review-{i} .overall-rating")) %>% 
       html_text() %>% 
-      str_replace_all("\\n", "") %>% 
-      trimws() 
+      strip_whitespace_newlines() 
 
     this_cont <- url %>% 
       read_html() %>% 
       html_nodes(glue(".cell-review:nth-child({i}) .color-text")) %>% 
       html_text() %>% 
-      str_replace_all("\\n", "") %>% 
-      trimws() 
+      strip_whitespace_newlines()
 
     this_review <- tibble(
       rating = this_rating,
