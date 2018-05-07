@@ -90,6 +90,7 @@ scrape_content <- function(url, i) {
 try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
 
 
+# TODO: maybe store these each in their own .rds in a dir after grabbing
 get_ratings_and_content <- function(url, review_range = 1:50) {
   out <- tibble()
   
@@ -111,7 +112,8 @@ get_ratings_and_content <- function(url, review_range = 1:50) {
   out <- out %>% 
     rowwise() %>% 
     mutate(
-      rating_perc = ifelse(is.na(rating), NA_character_, parse(text = rating) %>% eval()) %>% as.character()
+      rating_perc = ifelse(is.na(rating), NA_character_, 
+                           parse(text = rating) %>% eval()) %>% as.character()
     ) %>% 
     select(rating, rating_perc, content)
   
@@ -167,15 +169,24 @@ many_ratings_raw <-
   
 many_ratings <- 
   many_ratings_raw %>% 
-  split_pro_cons() %>% 
-  select(rating, rating_perc, everything())
-
+  split_pro_cons()
 
 many_ratings_clean <- many_ratings %>% 
   drop_na(rating)
 
+# write_csv(many_ratings_clean,
+#           here::here("data", "derived", "capterra_slack_reviews_first_99.csv"))
 
-write_csv(many_ratings_clean %>% dobtools::replace_na_df(), here::here("../..", "capterra_slack_reviews_first_99.csv"))
+
+
+
+
+
+
+# First page URL https://www.capterra.com/gdm_reviews?page=1&product_id=135003
+
+slack_full_url <- "https://www.capterra.com/gdm_reviews?page={i}&product_id=135003"
+
 
 
 
