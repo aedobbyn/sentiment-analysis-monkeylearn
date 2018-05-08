@@ -89,24 +89,40 @@ scrape_content <- function(url, i) {
 
 try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
 
+data_dir <- glue(here::here("data", "raw"), "/")
 
-# TODO: maybe store these each in their own .rds in a dir after grabbing
-get_ratings_and_content <- function(url, review_range = 1:50) {
+
+get_ratings_and_content <- function(url, review_range = 1:50,
+                                    sleep = 1,
+                                    write_out = TRUE, write_path = data_dir) {
+  ifelse(sleep <= 1, 1, sleep)
+  
   out <- tibble()
+  page <- ifelse(str_detect(url, "page"), 
+                 qdapRegex::ex_between(url, "page=", "&"),
+                 NA_character_)
   
   for (i in review_range) {
-    message(glue("Beginning scrape of review {i}"))
+    message(glue("Beginning scrape of page {page}, review {i}"))
     this_rating <- try_scrape_rating(url, i)
 
     this_cont <- try_scrape_content(url, i)
 
     this_review <- tibble(
       rating = this_rating,
-      content = this_cont
+      content = this_cont,
+      page_num = page,
+      review_num = i
     ) 
+    
+    if (write_out == TRUE) {
+      write_rds(this_review, path = glue(data_dir, "page_{page}_rating_{i}.rds"))
+    }
     
     out <- out %>% 
       bind_rows(this_review)
+    
+    Sys.sleep(runif(1, sleep - 0.5, sleep + 0.5))
   }
   
   out <- out %>% 
@@ -185,10 +201,26 @@ many_ratings_clean <- many_ratings %>%
 
 # First page URL https://www.capterra.com/gdm_reviews?page=1&product_id=135003
 
-slack_full_url <- "https://www.capterra.com/gdm_reviews?page={i}&product_id=135003"
+pages_want <- 1:45
+slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
 
 
 
+## Check that it's working
+# get_ratings_and_content(slack_full_urls[2], review_range = 1:2)
+# foo <- read_rds(glue("{data_dir}page_2_rating_2.rds"))
 
+
+get_multiple_pages <- function(urls, review_range = 1:99) {
+  out <- tibble()
+  for (u in urls) {
+    this_page <- get_ratings_and_content(u, review_range = review_range)
+    out <- out %>% 
+      bind_rows(this_page)
+  }
+  return(out)
+}
+
+all_reviews <- get_multiple_pages(slack_full_urls[1:45])
 
 
