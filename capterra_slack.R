@@ -73,6 +73,25 @@ scrape_rating <- function(url, i) {
 
 try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
 
+
+scrape_sub_ratings <- function(url, i) {
+  out <- url %>% 
+    read_html() %>% 
+    html_nodes(glue("#review-{i} .palm-one-half")) %>% 
+    html_text() %>% 
+    str_c(collapse = " ") %>% 
+    strip_whitespace_newlines()
+  
+  if (length(out) == 0) {
+    out <- NA_character_
+  }
+  
+  return(out)
+}
+
+try_scrape_sub_ratings <- possibly(scrape_sub_ratings, otherwise = NA_character_)
+
+
 scrape_content <- function(url, i) {
   out <- url %>% 
     read_html() %>% 
@@ -105,11 +124,14 @@ get_ratings_and_content <- function(url, review_range = 1:50,
   for (i in review_range) {
     message(glue("Beginning scrape of page {page}, review {i}"))
     this_rating <- try_scrape_rating(url, i)
+    
+    this_sub_ratings <- try_scrape_sub_ratings(url, i)
 
     this_cont <- try_scrape_content(url, i)
 
     this_review <- tibble(
       rating = this_rating,
+      sub_ratings = this_sub_ratings,
       content = this_cont,
       page_num = page,
       review_num = i
@@ -131,7 +153,7 @@ get_ratings_and_content <- function(url, review_range = 1:50,
       rating_perc = ifelse(is.na(rating), NA_character_, 
                            parse(text = rating) %>% eval()) %>% as.character()
     ) %>% 
-    select(rating, rating_perc, content)
+    select(page_num, review_num, rating, sub_ratings, rating_perc, content)
   
   return(out)
 }
@@ -221,6 +243,56 @@ get_multiple_pages <- function(urls, review_range = 1:99) {
   return(out)
 }
 
-all_reviews <- get_multiple_pages(slack_full_urls[1:45])
+# get_multiple_pages(slack_full_urls[1:99])
+
+
+
+make_files <- function() {
+  a <- glue(data_dir, "page_{1:35}")
+  out <- NULL
+  
+  for (i in 1:99) {
+    b <- c(a %>% map_chr(str_c, "_rating_", i, ".rds", sep = ""))
+    out <- c(out, b)
+  }
+  return(out)
+}
+
+fls <- make_files()
+
+mad_reviews <- map_dfr(fls, read_rds) %>% 
+  unnest(page_num) %>% 
+  drop_na(content)
+
+mad_reviews_trimmed <- mad_reviews %>% 
+  filter(!content %in% c("", " "))
+
+
+# write_csv(mad_reviews_trimmed, here::here("data", "derived", "all_reviews_slack.csv"))
+
+fgh <- mad_reviews %>% 
+  rowwise() %>% 
+  mutate(
+    foo = split_subratings(sub_ratings)
+  )
+
+
+split_subratings <- function(inp) {
+  nums <- inp %>% 
+    str_split("([0-9 ]+\\/[0-9 ]+)") %>% 
+    as_vector()
+  nums <- nums[nums != ""]
+  
+  names <- inp %>% 
+    str_split("([A-Za-z& ])") %>% 
+    as_vector()
+  names <- names[names != ""]
+  
+  out <- tibble(names = names, nums = nums)
+  return(out)
+}
+
+
+
 
 
