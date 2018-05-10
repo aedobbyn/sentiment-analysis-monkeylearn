@@ -273,11 +273,17 @@ mad_reviews_trimmed <- mad_reviews %>%
 fgh <- mad_reviews %>% 
   rowwise() %>% 
   mutate(
-    foo = split_subratings(sub_ratings)
+    foo = split_subratings(sub_ratings) %>% list()
   )
 
 
 split_subratings <- function(inp) {
+  
+  if (is.na(inp)) {
+    out <- tibble(names = NA_character_, nums = NA_character_)
+    return(out)
+  } 
+  
   nums <- inp %>% 
     str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>% 
     map(str_replace_all, "[ ]+", "") %>% 
@@ -285,9 +291,14 @@ split_subratings <- function(inp) {
   nums <- nums[nums != ""]
   
   names <- inp %>% 
-    str_split("([0-9 ]+\\/[0-9 ]+)") %>% 
+    str_split("([0-9\\. ]+\\/[0-9 ]+)") %>% 
     as_vector()
   names <- names[names != ""]
+  
+  if (length(nums) != length(names)) {
+    out <- tibble(names = "length_mismatch", nums = "length_mismatch")
+    return(out)
+  }
   
   out <- tibble(names = names, nums = nums)
   return(out)
