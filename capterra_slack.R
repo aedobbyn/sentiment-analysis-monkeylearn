@@ -279,18 +279,22 @@ fgh <- mad_reviews %>%
 
 split_subratings <- function(inp) {
   nums <- inp %>% 
-    str_split("([0-9 ]+\\/[0-9 ]+)") %>% 
+    str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>% 
+    map(str_replace_all, "[ ]+", "") %>% 
     as_vector()
   nums <- nums[nums != ""]
   
   names <- inp %>% 
-    str_split("([A-Za-z& ])") %>% 
+    str_split("([0-9 ]+\\/[0-9 ]+)") %>% 
     as_vector()
   names <- names[names != ""]
   
   out <- tibble(names = names, nums = nums)
   return(out)
 }
+
+
+
 
 
 
