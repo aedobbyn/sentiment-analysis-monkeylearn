@@ -45,6 +45,7 @@ sample_topics_unnested <-
 
 topic_batches_dir <- here("data", "derived", "topic_batches")
 
+
 write_batches <- function(df, dir = topic_batches_dir, 
                           n_texts_per_batch,
                           start_row = 1, ...) {
@@ -56,7 +57,7 @@ write_batches <- function(df, dir = topic_batches_dir,
   
   error_log <- ""
   
-  while(batch_end_row <= n_df_rows) {
+  while(batch_start_row <= n_df_rows) {
     get_batch <- 
       safely(monkey_classify)
     
@@ -86,6 +87,10 @@ write_batches <- function(df, dir = topic_batches_dir,
     
     batch_start_row <- batch_start_row + n_texts_per_batch
     batch_end_row <- batch_start_row + n_texts_per_batch
+    
+    if (batch_end_row > n_df_rows) {
+      batch_end_row <- n_df_rows
+    }
   }
   
   return(out)
@@ -93,8 +98,13 @@ write_batches <- function(df, dir = topic_batches_dir,
 
 
 
-foo <- reviews_with_subratings[1:10, ] %>% 
+some_topics_batch_classified <- 
+  reviews_with_subratings[1:10, ] %>% 
   write_batches(n_texts_per_batch = 2)
 
 
+
+topics_raw <- 
+  reviews_with_subratings %>% 
+  write_batches(n_texts_per_batch = 200)
 
