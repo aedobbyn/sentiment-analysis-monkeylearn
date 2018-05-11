@@ -270,13 +270,6 @@ mad_reviews_trimmed <- mad_reviews %>%
 
 # write_csv(mad_reviews_trimmed, here::here("data", "derived", "all_reviews_slack.csv"))
 
-fgh <- mad_reviews %>% 
-  rowwise() %>% 
-  mutate(
-    foo = split_subratings(sub_ratings) %>% list()
-  )
-
-
 split_subratings <- function(inp) {
   
   if (is.na(inp)) {
@@ -306,6 +299,29 @@ split_subratings <- function(inp) {
 
 
 
+reviews_with_subratings <- mad_reviews %>% 
+  rowwise() %>% 
+  mutate(
+    sub_ratings_split = split_subratings(sub_ratings) %>% list()
+  ) %>% 
+  select(-sub_ratings) %>% 
+  drop_na(content) %>% 
+  filter(!content %in% c("", " "))
+
+reviews_with_subratings$page_num <- as.numeric(reviews_with_subratings$page_num)
+
+reviews_with_subratings_unnested <- 
+  reviews_with_subratings %>% 
+  unnest() %>% 
+  rename(
+    sub_rating_category = names,
+    sub_rating_rating = nums
+  ) %>% 
+  arrange(page_num, review_num, sub_rating_category) 
+
+
+write_csv(reviews_with_subratings_unnested %>% map_df(dobtools::replace_na_df),
+          here::here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
 
 
