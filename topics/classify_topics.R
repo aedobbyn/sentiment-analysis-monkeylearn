@@ -93,6 +93,8 @@ write_batches <- function(df, dir = topic_batches_dir,
     } else {
       error_log <- error_log %>% 
         c(glue("Error between rows {batch_start_row} and {batch_end_row} :("))
+      
+      message(error_log)
     }
     
     batch_start_row <- batch_start_row + n_texts_per_batch
@@ -117,9 +119,9 @@ some_topics_batch_classified <-
 
 
 # # Error between texts 600 and 800
-# topics_raw <- 
-#   reviews_with_subratings %>% 
-#   write_batches(n_texts_per_batch = 200)
+topics_raw <-
+  reviews_with_subratings[600:nrow(reviews_with_subratings), ] %>%
+  write_batches(n_texts_per_batch = 200)
 
 
 
@@ -139,6 +141,36 @@ gather_batches <- function(dir = topic_batches_dir,
 }
 
 bar <- gather_batches()
+
+
+
+topic_batches_dir <- here::here("data", "derived", "topic_batches")
+
+fls <- fs::dir_ls(topic_batches_dir)
+fls_tbl <- tibble(x = fls)
+fls_tbl <- data.frame(x = fls) %>% 
+  as_tibble()
+
+new_file_names <- fls_tbl %>% 
+  separate(x, c("dir", "num_chunk"), "rows_") %>% 
+  separate(num_chunk, c("start_num", "end_bit"), "_to_") %>% 
+  separate(end_bit, c("end_num", "chuck"), "\\.") %>% 
+  mutate(
+    start_num = as.numeric(start_num),
+    end_num = as.numeric(end_num)
+  ) %>% 
+  rowwise() %>%
+  mutate(
+    start_num = ifelse(nchar(start_num) >=3, start_num + 600, start_num),
+    end_num = ifelse(nchar(end_num) >=3, end_num + 600, end_num),
+    full_path = str_c(dir, "rows_", start_num, "_to_", end_num, ".", chuck, sep = "")
+  )
+
+
+
+
+
+
 
 
 
