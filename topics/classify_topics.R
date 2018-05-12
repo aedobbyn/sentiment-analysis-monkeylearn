@@ -46,10 +46,24 @@ sample_topics_unnested <-
 topic_batches_dir <- here("data", "derived", "topic_batches")
 
 
+unnest_result <- function(df) {
+  out <- df %>% 
+    rowwise() %>% 
+    mutate(
+      res = ifelse(length(res)[[1]] == 0, replacement, res) 
+    ) %>% 
+    unnest(res)
+  
+  return(out)
+}
+
+try_unnest_result <- safely(unnest_result)
+
+
 write_batches <- function(df, dir = topic_batches_dir, 
                           n_texts_per_batch,
                           start_row = 1, ...) {
-  out <- tibble()
+  resp <- tibble()
   n_df_rows <- nrow(df)
   
   batch_start_row <- start_row
@@ -68,17 +82,13 @@ write_batches <- function(df, dir = topic_batches_dir,
     message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
   
     this_batch <- this_batch_nested$result %>% 
-      rowwise() %>% 
-      mutate(
-        res = ifelse(length(res)[[1]] == 0, replacement, res) 
-      ) %>% 
-      unnest(res)
+      try_unnest_result()
     
-    if (is.null(this_batch_nested$error)) {
-      write_csv(this_batch, glue("{dir}/topic_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+    if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
+      write_csv(this_batch$result, glue("{dir}/topic_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
       
-      out <- out %>% 
-        bind_rows(this_batch)
+      resp <- resp %>% 
+        bind_rows(this_batch$result)
       
     } else {
       error_log <- error_log %>% 
@@ -93,6 +103,9 @@ write_batches <- function(df, dir = topic_batches_dir,
     }
   }
   
+  out <- list(resp = resp, 
+              error_log = error_log)
+  
   return(out)
 }
 
@@ -103,8 +116,30 @@ some_topics_batch_classified <-
   write_batches(n_texts_per_batch = 2)
 
 
+# # Error between texts 600 and 800
+# topics_raw <- 
+#   reviews_with_subratings %>% 
+#   write_batches(n_texts_per_batch = 200)
 
-topics_raw <- 
-  reviews_with_subratings %>% 
-  write_batches(n_texts_per_batch = 200)
+
+
+gather_batches <- function(dir = topic_batches_dir,
+                           end_row) {
+
+  fls <- fs::dir_ls(dir)
+  
+  list_o_batches <- 
+    map(fls, 
+        read_csv)
+  
+  out <- list_o_batches %>% 
+    bind_rows()
+  
+  return(out)
+}
+
+bar <- gather_batches()
+
+
+
 
