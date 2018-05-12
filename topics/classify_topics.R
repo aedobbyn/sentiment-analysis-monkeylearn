@@ -85,7 +85,8 @@ write_batches <- function(df, dir = topic_batches_dir,
       try_unnest_result()
     
     if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
-      write_csv(this_batch$result, glue("{dir}/topic_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+      write_csv(this_batch$result, 
+                glue("{dir}/topic_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
       
       resp <- resp %>% 
         bind_rows(this_batch$result)
@@ -118,31 +119,17 @@ some_topics_batch_classified <-
   write_batches(n_texts_per_batch = 2)
 
 
-# # Error between texts 600 and 800
-topics_raw <-
-  reviews_with_subratings[600:nrow(reviews_with_subratings), ] %>%
-  write_batches(n_texts_per_batch = 200)
+# # Error between texts 600 and 800, so did in two batches
+# topics_first_600 <-
+#   reviews_with_subratings[1:600, ] %>%
+#   write_batches(n_texts_per_batch = 200)
+# 
+# topics_600_onward <-
+#   reviews_with_subratings[600:nrow(reviews_with_subratings), ] %>%
+#   write_batches(n_texts_per_batch = 200)
 
 
-
-gather_batches <- function(dir = topic_batches_dir,
-                           end_row) {
-
-  fls <- fs::dir_ls(dir)
-  
-  list_o_batches <- 
-    map(fls, 
-        read_csv)
-  
-  out <- list_o_batches %>% 
-    bind_rows()
-  
-  return(out)
-}
-
-bar <- gather_batches()
-
-
+# ---- Bit o renaming -----
 
 topic_batches_dir <- here::here("data", "derived", "topic_batches")
 
@@ -161,17 +148,35 @@ new_file_names <- fls_tbl %>%
   ) %>% 
   rowwise() %>%
   mutate(
-    start_num = ifelse(nchar(start_num) >=3, start_num + 600, start_num),
+    start_num = ifelse(nchar(start_num) >=3 | start_num == 601, start_num + 600, start_num),
     end_num = ifelse(nchar(end_num) >=3, end_num + 600, end_num),
     full_path = str_c(dir, "rows_", start_num, "_to_", end_num, ".", chuck, sep = "")
   )
 
+# for (i in seq_along(fls)) {
+#   file.rename(fls[i], new_file_names$full_path[i])
+# }
+
+# ---------------------------------
 
 
+gather_batches <- function(dir = topic_batches_dir,
+                           end_row) {
+  
+  fls <- fs::dir_ls(dir)
+  
+  list_o_batches <- 
+    map(fls, 
+        read_csv)
+  
+  out <- list_o_batches %>% 
+    bind_rows()
+  
+  return(out)
+}
 
+all_topics_parcelled <- gather_batches()
 
-
-
-
+# write_csv(all_topics_parcelled, here("data", "derived", "all_topics_parcelled.csv"))
 
 
