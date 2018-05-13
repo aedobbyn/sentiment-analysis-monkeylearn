@@ -6,26 +6,21 @@ library(glue)
 
 source(here("key.R"))
 
-reviews_with_subratings <- read_csv(here("data", "derived", "all_reviews_slack.csv"))
+reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with_subratings_nested.rds"))
 reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
-# Get back to our nested structure
-reviews_with_subratings_nested <- 
-  reviews_with_subratings_unnested %>% 
-  nest(starts_with("sub_rating"))
-
-write_rds(reviews_with_subratings_nested, here("data", "derived", "reviews_with_subratings_nested.rds"))
-
-
+# Default replacement for NULLs
 replacement <- tribble(
   ~category_id, ~probability, ~label,
   NA_character_, NA_character_, NA_character_
 ) %>% list()
 
+# Test out this particular classifier
 sample_topics_raw <- 
-  monkey_classify(reviews_with_subratings[1:3, ], col = content,
+  monkey_classify(reviews_with_subratings_nested[1:3, ], col = content,
                   classifier_id = classifier_id, unnest = FALSE) 
 
+# Make adjustments when unnesting; replace NULLs with NAs
 sample_topics_unnested <- 
   sample_topics_raw %>% 
   rowwise() %>% 
@@ -35,22 +30,7 @@ sample_topics_unnested <-
   unnest(res)
 
 
-# topics_raw <- 
-#   monkey_classify(reviews_with_subratings, col = content,
-#                   classifier_id = classifier_id, unnest = FALSE) 
-
-# Processing batch 1 of 13 batches: texts 1 to 200
-# Processing batch 2 of 13 batches: texts 200 to 400
-# Processing batch 3 of 13 batches: texts 400 to 600
-# Processing batch 4 of 13 batches: texts 600 to 800
-# Processing batch 5 of 13 batches: texts 800 to 1000
-# No results for this call; returning NA.
-# Error in cbind_all(x) : Argument 2 must be length 2542, not 200
-
-
-topic_batches_dir <- here("data", "derived", "topic_batches")
-
-
+# Helper for doing that adjustment above
 unnest_result <- function(df) {
   out <- df %>% 
     rowwise() %>% 
@@ -62,9 +42,16 @@ unnest_result <- function(df) {
   return(out)
 }
 
+# Create a trycatch that will return a list with two elements; a result and error, one of which will always be NULL
 try_unnest_result <- safely(unnest_result)
 
 
+# Define directory to put topic batches
+topic_batches_dir <- here("data", "derived", "topic_batches")
+
+
+# Take a dataframe, send batches of `n_texts_per_batch` at a time to the API, store each processed batch in `dir`,
+# and log any errors that occur
 write_batches <- function(df, dir = topic_batches_dir, 
                           n_texts_per_batch,
                           start_row = 1, ...) {
@@ -98,7 +85,8 @@ write_batches <- function(df, dir = topic_batches_dir,
       
     } else {
       error_log <- error_log %>% 
-        c(glue("Error between rows {batch_start_row} and {batch_end_row} :("))
+        c(glue("Error between rows {batch_start_row} and {batch_end_row}: 
+               {c(this_batch_nested$error, this_batch$error)}"))
       
       message(error_log)
     }
@@ -117,54 +105,21 @@ write_batches <- function(df, dir = topic_batches_dir,
   return(out)
 }
 
-
-
+# Test out with the first 10 texts in batches of 2 texts at a time
 some_topics_batch_classified <- 
-  reviews_with_subratings[1:10, ] %>% 
+  reviews_with_subratings_nested[1:10, ] %>% 
   write_batches(n_texts_per_batch = 2)
 
 
-# # Error between texts 600 and 800, so did in two batches
-# topics_first_600 <-
-#   reviews_with_subratings[1:600, ] %>%
-#   write_batches(n_texts_per_batch = 200)
-# 
-# topics_600_onward <-
-#   reviews_with_subratings[600:nrow(reviews_with_subratings), ] %>%
-#   write_batches(n_texts_per_batch = 200)
+# # # Actually classify all the texts (commented out for safety)
+# write_batches_res <- 
+#   reviews_with_subratings_nested %>% 
+#   write_batches(n_texts_per_batch = 2)
 
+# Check the error log
+write_batches_res$error
 
-# ---- Bit o renaming -----
-
-topic_batches_dir <- here::here("data", "derived", "topic_batches")
-
-fls <- fs::dir_ls(topic_batches_dir)
-fls_tbl <- tibble(x = fls)
-fls_tbl <- data.frame(x = fls) %>% 
-  as_tibble()
-
-new_file_names <- fls_tbl %>% 
-  separate(x, c("dir", "num_chunk"), "rows_") %>% 
-  separate(num_chunk, c("start_num", "end_bit"), "_to_") %>% 
-  separate(end_bit, c("end_num", "chuck"), "\\.") %>% 
-  mutate(
-    start_num = as.numeric(start_num),
-    end_num = as.numeric(end_num)
-  ) %>% 
-  rowwise() %>%
-  mutate(
-    start_num = ifelse(nchar(start_num) >=3 | start_num == 601, start_num + 600, start_num),
-    end_num = ifelse(nchar(end_num) >=3, end_num + 600, end_num),
-    full_path = str_c(dir, "rows_", start_num, "_to_", end_num, ".", chuck, sep = "")
-  )
-
-# for (i in seq_along(fls)) {
-#   file.rename(fls[i], new_file_names$full_path[i])
-# }
-
-# ---------------------------------
-
-
+# Read in all the batches and stick them in one long dataframe
 gather_batches <- function(dir = topic_batches_dir,
                            end_row) {
   
@@ -182,30 +137,14 @@ gather_batches <- function(dir = topic_batches_dir,
 
 all_topics_parcelled <- gather_batches()
 
-# write_csv(all_topics_parcelled, here("data", "derived", "all_topics_parcelled.csv"))
-
-
-
-all_topics_parcelled_2 <- 
-  all_topics_parcelled %>% 
-  left_join(reviews_with_subratings_nested,
-            by = c("content" = "content", "rating" = "rating",
-                   "page_num" = "page_num", "review_num" = "review_num")) %>% 
-  select(-sub_ratings) %>% 
-  rename(
-    sub_ratings_df = data
-  )
-
+# Unnest the subratings
 all_topics_parcelled_unnested <- 
   all_topics_parcelled_2 %>% 
   unnest(sub_ratings_df)
 
 
-write_rds(all_topics_parcelled_2, here("data", "derived", "all_topics_parcelled.rds"))
-
-write_csv(all_topics_parcelled_unnested, here("data", "derived", "all_topics_parcelled_unnested.csv"))
-
-
-
+# # Save these
+# write_rds(all_topics_parcelled, here("data", "derived", "all_topics_parcelled.rds"))
+# write_csv(all_topics_parcelled_unnested, here("data", "derived", "all_topics_parcelled_unnested.csv"))
 
 
