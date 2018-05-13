@@ -9,6 +9,12 @@ source(here("key.R"))
 reviews_with_subratings <- read_csv(here("data", "derived", "all_reviews_slack.csv"))
 reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
+# Get back to our nested structure
+reviews_with_subratings_nested <- 
+  reviews_with_subratings_unnested %>% 
+  nest(starts_with("sub_rating"))
+
+write_rds(reviews_with_subratings_nested, here("data", "derived", "reviews_with_subratings_nested.rds"))
 
 
 replacement <- tribble(
@@ -27,7 +33,6 @@ sample_topics_unnested <-
     res = ifelse(length(res)[[1]] == 0, replacement, res) 
   ) %>% 
   unnest(res)
-
 
 
 # topics_raw <- 
@@ -178,5 +183,29 @@ gather_batches <- function(dir = topic_batches_dir,
 all_topics_parcelled <- gather_batches()
 
 # write_csv(all_topics_parcelled, here("data", "derived", "all_topics_parcelled.csv"))
+
+
+
+all_topics_parcelled_2 <- 
+  all_topics_parcelled %>% 
+  left_join(reviews_with_subratings_nested,
+            by = c("content" = "content", "rating" = "rating",
+                   "page_num" = "page_num", "review_num" = "review_num")) %>% 
+  select(-sub_ratings) %>% 
+  rename(
+    sub_ratings_df = data
+  )
+
+all_topics_parcelled_unnested <- 
+  all_topics_parcelled_2 %>% 
+  unnest(sub_ratings_df)
+
+
+write_rds(all_topics_parcelled_2, here("data", "derived", "all_topics_parcelled.rds"))
+
+write_csv(all_topics_parcelled_unnested, here("data", "derived", "all_topics_parcelled_unnested.csv"))
+
+
+
 
 
