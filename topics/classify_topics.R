@@ -50,9 +50,17 @@ try_unnest_result <- safely(unnest_result)
 topic_batches_dir <- here("data", "derived", "topic_batches")
 
 
+# Helpers for the trycatch 
+get_classification_batch <- 
+  safely(monkey_classify)
+
+get_extraction_batch <- 
+  safely(monkey_extract)
+
+
 # Take a dataframe, send batches of `n_texts_per_batch` at a time to the API, store each processed batch in `dir`,
 # and log any errors that occur
-write_batches <- function(df, dir = topic_batches_dir, 
+write_batches <- function(df, id, dir, 
                           n_texts_per_batch,
                           start_row = 1, ...) {
   resp <- tibble()
@@ -64,13 +72,23 @@ write_batches <- function(df, dir = topic_batches_dir,
   error_log <- ""
   
   while(batch_start_row <= n_df_rows) {
-    get_batch <- 
-      safely(monkey_classify)
     
-    this_batch_nested <- get_batch(df[batch_start_row:batch_end_row, ],
-                            col = content,
-                            classifier_id = classifier_id, 
-                            unnest = FALSE)
+    # We have a classification
+    if (substr(id, 1, 3) == "cl_") {
+      this_batch_nested <- get_classification_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     classifier_id = id, 
+                                     unnest = FALSE)
+    } else if (substr(id, 1, 3) == "ex_") {
+      this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     extactor_id = id, 
+                                     unnest = FALSE)
+    } else {
+      message("Not a recognized classifier or extractor id.")
+    }
+    
+    
     message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
   
     this_batch <- this_batch_nested$result %>% 
@@ -108,20 +126,20 @@ write_batches <- function(df, dir = topic_batches_dir,
 # Test out with the first 10 texts in batches of 2 texts at a time
 some_topics_batch_classified <- 
   reviews_with_subratings_nested[1:10, ] %>% 
-  write_batches(n_texts_per_batch = 2)
+  write_batches(dir = topic_batches_dir,
+                n_texts_per_batch = 2)
 
 
 # # # Actually classify all the texts (commented out for safety)
 # write_batches_res <- 
 #   reviews_with_subratings_nested %>% 
-#   write_batches(n_texts_per_batch = 2)
+#   write_batches(dir = topic_batches_dir, n_texts_per_batch = 2)
 
 # Check the error log
 write_batches_res$error
 
 # Read in all the batches and stick them in one long dataframe
-gather_batches <- function(dir = topic_batches_dir,
-                           end_row) {
+gather_batches <- function(dir, end_row) {
   
   fls <- fs::dir_ls(dir)
   
@@ -135,11 +153,11 @@ gather_batches <- function(dir = topic_batches_dir,
   return(out)
 }
 
-all_topics_parcelled <- gather_batches()
+all_topics_parcelled <- gather_batches(dir = topic_batches_dir)
 
 # Unnest the subratings
 all_topics_parcelled_unnested <- 
-  all_topics_parcelled_2 %>% 
+  all_topics_parcelled %>% 
   unnest(sub_ratings_df)
 
 

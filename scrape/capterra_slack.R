@@ -320,8 +320,8 @@ reviews_with_subratings_unnested <-
   arrange(page_num, review_num, sub_rating_category) 
 
 
-write_csv(reviews_with_subratings_unnested %>% map_df(dobtools::replace_na_df),
-          here::here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
+# write_csv(reviews_with_subratings_unnested %>% map_df(dobtools::replace_na_df),
+#           here::here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
 
 
