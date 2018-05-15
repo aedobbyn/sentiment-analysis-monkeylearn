@@ -29,6 +29,8 @@ sample_opinions_unnested <-
   ) %>% 
   unnest(res)
 
+write_csv(sample_opinions_unnested, here("../..", "sample_opinions_unnested.csv"))
+
 
 # Extract a few 
 some_opinion_batches_extracted <- 

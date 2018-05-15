@@ -10,10 +10,16 @@ reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with
 reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
 # Default replacement for NULLs
-replacement <- tribble(
+replacement_classifier <- tribble(
   ~category_id, ~probability, ~label,
   NA_character_, NA_character_, NA_character_
 ) %>% list()
+
+
+replacement_extractor <- tribble(
+  ~count, ~tag, ~entity,
+  NA_character_, NA_character_, NA_character_
+) 
 
 # Test out this particular classifier
 sample_topics_raw <- 
@@ -31,20 +37,30 @@ sample_topics_unnested <-
 
 
 # Helper for doing that adjustment above
-unnest_result <- function(df) {
+unnest_result_classifier <- function(df) {
   out <- df %>% 
     rowwise() %>% 
     mutate(
-      res = ifelse(length(res)[[1]] == 0 | length(res) == 0, replacement, res) 
+      res = ifelse(length(res)[[1]] == 0, replacement_classifier, res) 
     ) %>% 
     unnest(res)
   
   return(out)
 }
 
+unnest_result_extractor <- function(df) {
+  out <- df 
+  df$res <- df$res %>% 
+    map(dobtools::replace_x, replacement = replacement_extractor)
+  
+  out <- df %>% 
+    unnest(res)
+  
+  return(out)
+}
 # Create a trycatch that will return a list with two elements; a result and error, one of which will always be NULL
-try_unnest_result <- safely(unnest_result)
-
+try_unnest_result_extractor <- safely(unnest_result_extractor)
+try_unnest_result_classifier <- safely(unnest_result_classifier)
 
 # Define directory to put topic batches
 topic_batches_dir <- here("data", "derived", "topic_batches")
@@ -58,7 +74,7 @@ get_extraction_batch <-
   safely(monkey_extract)
 
 
-# Take a dataframe, send batches of `n_texts_per_batch` at a time to the API, store each processed batch in `dir`,
+# Take a dataframe and a classifier/extractor id, send batches of `n_texts_per_batch` at a time to the API, store each processed batch in `dir`,
 # and log any errors that occur
 write_batches <- function(df, id, dir, 
                           n_texts_per_batch,
@@ -88,22 +104,28 @@ write_batches <- function(df, id, dir,
                                      col = content,
                                      classifier_id = id, 
                                      unnest = FALSE)
+      this_batch <- this_batch_nested$result %>% 
+        try_unnest_result_classifier()
+      
     } else if (type_of_problem == "extraction") {
       this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
                                      col = content,
                                      extactor_id = id, 
                                      unnest = FALSE)
+      
+      this_batch <- this_batch_nested$result %>% 
+        try_unnest_result_extractor()
     } 
     
     message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
   
-    this_batch <- this_batch_nested$result %>% 
-      try_unnest_result()
     
-    if (is.null(this_batch_nested$error) && is.null(this_batch$error) && write_out == TRUE) {
-      write_csv(this_batch$result, 
-                glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
-      
+    if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
+      if (write_out == TRUE) {
+        write_csv(this_batch$result, 
+                  glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+      }
+    
       resp <- resp %>% 
         bind_rows(this_batch$result)
       
@@ -131,11 +153,13 @@ write_batches <- function(df, id, dir,
 
 # Derive more specific funcitons
 write_extraction_batches <- function(df, n_texts_per_batch = 200, ...) {
-  write_batches(df, id = extractor_id, dir = opinion_batches_dir, ...)
+  write_batches(df, id = extractor_id, n_texts_per_batch = n_texts_per_batch,
+                dir = opinion_batches_dir, ...)
 }
 
 write_classification_batches <- function(df, n_texts_per_batch = 200, ...) {
-  write_batches(df, id = classifier_id, dir = topic_batches_dir, ...)
+  write_batches(df, id = classifier_id, n_texts_per_batch = n_texts_per_batch,
+                dir = topic_batches_dir, ...)
 }
   
 
