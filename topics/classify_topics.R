@@ -35,7 +35,7 @@ unnest_result <- function(df) {
   out <- df %>% 
     rowwise() %>% 
     mutate(
-      res = ifelse(length(res)[[1]] == 0, replacement, res) 
+      res = ifelse(length(res)[[1]] == 0 | length(res) == 0, replacement, res) 
     ) %>% 
     unnest(res)
   
@@ -62,7 +62,16 @@ get_extraction_batch <-
 # and log any errors that occur
 write_batches <- function(df, id, dir, 
                           n_texts_per_batch,
-                          start_row = 1, ...) {
+                          start_row = 1,
+                          write_out = TRUE, ...) {
+  if (substr(id, 1, 3) == "cl_") {
+    type_of_problem <- "classification"
+  } else if (substr(id, 1, 3) == "ex_") {
+    type_of_problem <- "extraction"
+  } else {
+    stop("Not a recognized classifier or extractor id.")
+  }
+  
   resp <- tibble()
   n_df_rows <- nrow(df)
   
@@ -74,29 +83,26 @@ write_batches <- function(df, id, dir,
   while(batch_start_row <= n_df_rows) {
     
     # We have a classification
-    if (substr(id, 1, 3) == "cl_") {
+    if (type_of_problem == "classification") {
       this_batch_nested <- get_classification_batch(df[batch_start_row:batch_end_row, ],
                                      col = content,
                                      classifier_id = id, 
                                      unnest = FALSE)
-    } else if (substr(id, 1, 3) == "ex_") {
+    } else if (type_of_problem == "extraction") {
       this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
                                      col = content,
                                      extactor_id = id, 
                                      unnest = FALSE)
-    } else {
-      message("Not a recognized classifier or extractor id.")
-    }
-    
+    } 
     
     message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
   
     this_batch <- this_batch_nested$result %>% 
       try_unnest_result()
     
-    if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
+    if (is.null(this_batch_nested$error) && is.null(this_batch$error) && write_out == TRUE) {
       write_csv(this_batch$result, 
-                glue("{dir}/topic_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+                glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
       
       resp <- resp %>% 
         bind_rows(this_batch$result)
@@ -123,17 +129,32 @@ write_batches <- function(df, id, dir,
   return(out)
 }
 
+# Derive more specific funcitons
+write_extraction_batches <- function(df, n_texts_per_batch = 200, ...) {
+  write_batches(df, id = extractor_id, dir = opinion_batches_dir, ...)
+}
+
+write_classification_batches <- function(df, n_texts_per_batch = 200, ...) {
+  write_batches(df, id = classifier_id, dir = topic_batches_dir, ...)
+}
+  
+
+
+
 # Test out with the first 10 texts in batches of 2 texts at a time
 some_topics_batch_classified <- 
   reviews_with_subratings_nested[1:10, ] %>% 
-  write_batches(dir = topic_batches_dir,
+  write_batches(id = classifier_id,
+                dir = topic_batches_dir,
                 n_texts_per_batch = 2)
 
 
 # # # Actually classify all the texts (commented out for safety)
-# write_batches_res <- 
-#   reviews_with_subratings_nested %>% 
-#   write_batches(dir = topic_batches_dir, n_texts_per_batch = 2)
+# write_batches_res <-
+#   reviews_with_subratings_nested %>%
+#   write_batches(id = classifier_id,
+#               dir = topic_batches_dir,
+#               n_texts_per_batch = 2)
 
 # Check the error log
 write_batches_res$error

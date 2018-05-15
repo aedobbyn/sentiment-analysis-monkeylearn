@@ -19,7 +19,7 @@ opinion_batches_dir <- here("data", "derived", "opinion_batches")
 # Make sure behavior is the same
 sample_opinions_raw <- 
   monkey_extract(reviews_with_subratings_nested[1:3, ], col = content,
-                  extractor_id = "ex_N4aFcea3", unnest = FALSE)
+                  extractor_id = extractor_id, unnest = FALSE)
 
 sample_opinions_unnested <- 
   sample_opinions_raw %>% 
