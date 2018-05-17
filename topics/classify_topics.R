@@ -79,6 +79,7 @@ get_extraction_batch <-
 write_batches <- function(df, id, dir, 
                           n_texts_per_batch,
                           start_row = 1,
+                          unnest = FALSE,
                           write_out = TRUE, ...) {
   if (substr(id, 1, 3) == "cl_") {
     type_of_problem <- "classification"
@@ -103,7 +104,7 @@ write_batches <- function(df, id, dir,
       this_batch_nested <- get_classification_batch(df[batch_start_row:batch_end_row, ],
                                      col = content,
                                      classifier_id = id, 
-                                     unnest = FALSE)
+                                     unnest = unnest)
       this_batch <- this_batch_nested$result %>% 
         try_unnest_result_classifier()
       
@@ -111,7 +112,7 @@ write_batches <- function(df, id, dir,
       this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
                                      col = content,
                                      extactor_id = id, 
-                                     unnest = FALSE)
+                                     unnest = unnest)
       
       this_batch <- this_batch_nested$result %>% 
         try_unnest_result_extractor()
@@ -152,14 +153,16 @@ write_batches <- function(df, id, dir,
 }
 
 # Derive more specific funcitons
-write_extraction_batches <- function(df, n_texts_per_batch = 200, ...) {
+write_extraction_batches <- function(df, n_texts_per_batch = 200, 
+                                     dir = opinion_batches_dir, ...) {
   write_batches(df, id = extractor_id, n_texts_per_batch = n_texts_per_batch,
-                dir = opinion_batches_dir, ...)
+                dir = dir, ...)
 }
 
-write_classification_batches <- function(df, n_texts_per_batch = 200, ...) {
+write_classification_batches <- function(df, n_texts_per_batch = 200, 
+                                         dir = topic_batches_dir, ...) {
   write_batches(df, id = classifier_id, n_texts_per_batch = n_texts_per_batch,
-                dir = topic_batches_dir, ...)
+                dir = dir, ...)
 }
   
 
@@ -168,9 +171,9 @@ write_classification_batches <- function(df, n_texts_per_batch = 200, ...) {
 # Test out with the first 10 texts in batches of 2 texts at a time
 some_topics_batch_classified <- 
   reviews_with_subratings_nested[1:10, ] %>% 
-  write_batches(id = classifier_id,
-                dir = topic_batches_dir,
+  write_classification_batches(
                 n_texts_per_batch = 2)
+
 
 
 # # # Actually classify all the texts (commented out for safety)
@@ -193,6 +196,7 @@ gather_batches <- function(dir, end_row) {
         read_csv)
   
   out <- list_o_batches %>% 
+    map_df(as.character) %>% 
     bind_rows()
   
   return(out)
@@ -209,5 +213,67 @@ all_topics_parcelled_unnested <-
 # # Save these
 # write_rds(all_topics_parcelled, here("data", "derived", "all_topics_parcelled.rds"))
 # write_csv(all_topics_parcelled_unnested, here("data", "derived", "all_topics_parcelled_unnested.csv"))
+
+
+
+
+# Another test
+
+topic_batches_dir_new <- here("data", "derived", "topic_batches_new")
+
+more_topics_batch_classified <- 
+  reviews_with_subratings_nested[1:10, ] %>% 
+  write_classification_batches(n_texts_per_batch = 2,
+                               dir = topic_batches_dir_new)
+
+more_topics_batch_classified_gathered <- 
+  gather_batches(dir = topic_batches_dir_new)
+
+
+
+
+# ------------------ Use data pre-extracted ------------------
+
+all_extracted_opinion_units <- 
+  read_csv(here("data", "derived", "All_Opinion_Units_Sentiment_Topic.csv")) %>% 
+  rename(content = Text)
+
+
+
+foo <- all_extracted_opinion_units[1:9, ] %>% 
+  write_classification_batches(n_texts_per_batch = 2,
+                               dir = topic_batches_dir_new)
+
+bar <- 
+  gather_batches(dir = topic_batches_dir_new)
+
+
+foo_one <- 
+  read_csv(glue(topic_batches_dir_new, "/classification_batches_rows_1_to_3.csv")) %>% 
+  map_df(as.character)
+
+foo_two <- 
+  read_csv(glue(topic_batches_dir_new, "/classification_batches_rows_3_to_5.csv")) %>% 
+  map_df(as.character)
+
+foo_five <- 
+  read_csv(glue(topic_batches_dir_new, "/classification_batches_rows_9_to_9.csv")) %>% 
+  map_df(as.character)
+
+
+bind_rows(foo_one, foo_two)
+
+
+
+
+
+
+
+
+foo <- all_extracted_opinion_units[1:9, ] %>% 
+  write_classification_batches(n_texts_per_batch = 2,
+                               dir = topic_batches_dir_new)
+
+
 
 
