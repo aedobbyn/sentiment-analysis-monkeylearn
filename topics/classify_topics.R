@@ -41,7 +41,7 @@ unnest_result_classifier <- function(df) {
   out <- df %>% 
     rowwise() %>% 
     mutate(
-      res = ifelse(length(res)[[1]] == 0, replacement_classifier, res) 
+      res = ifelse(length(res)[[1]] == 0 || is.na(res), replacement_classifier, res) 
     ) %>% 
     unnest(res)
   
@@ -196,7 +196,7 @@ gather_batches <- function(dir, end_row) {
         read_csv)
   
   out <- list_o_batches %>% 
-    map_df(as.character) %>% 
+    modify_depth(2, as.character) %>%
     bind_rows()
   
   return(out)
@@ -270,8 +270,8 @@ bind_rows(foo_one, foo_two)
 
 
 
-foo <- all_extracted_opinion_units[1:9, ] %>% 
-  write_classification_batches(n_texts_per_batch = 2,
+all_classified_units <- all_extracted_opinion_units[1:14200, ] %>% 
+  write_classification_batches(n_texts_per_batch = 200,
                                dir = topic_batches_dir_new)
 
 
