@@ -3,6 +3,7 @@ library(tidyverse)
 # devtools::install_github("ropensci/monkeylearn")
 library(monkeylearn)
 library(glue)
+library(tidytext)
 
 dat_raw <- 
   read_csv(here("data", "derived", "All_Opinion_Units_Sentiment_Topic.csv")) 
@@ -53,15 +54,53 @@ sentiment_by_category <-
 ggplot(dat_clean) +
   geom_bar(aes(category))
 
-
-
-
+# Breakdown by category and sentiment
 ggplot(sentiment_by_category) +
   geom_bar(aes(category, mean_sentiment), stat = "identity")
 
 
 
 
+# ------ Words ------
+
+dat_tokens_unnested <- 
+  dat_clean %>% 
+  unnest_tokens(word, content) %>% 
+  anti_join(stop_words, "word") %>%
+  dobtools::find_nums() %>% 
+  filter(contains_num == FALSE) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_total = n
+  )
+
+dat_tokens_unnested <-  
+  dat_tokens_unnested %>% 
+  select(-is_num, -contains_num) %>% 
+  left_join(tidytext::sentiments %>% rename(word_sentiment), by = "word")
+
+# Need full content (document) to bind tf idf 
+
+dat_tokens_unnested %>% 
+  group_by(word, n_words_total) %>% 
+  summarise(
+    mean_sentiment_num = mean(sentiment_num)
+  )
+
+
+# Do words that come at the beginning of the alphabet have higher sentiment?
+dat_tokens_unnested_first_letter <- 
+  dat_tokens_unnested %>% 
+  rowwise() %>% 
+  mutate(
+    first_letter = substr(word, 1, 1),
+    first_letter_num = which(letters == first_letter)
+  ) 
+
+
+# Plot sentiment by first letter
+ggplot(dat_tokens_unnested_first_letter) +
+  geom_smooth(aes(first_letter_num, sentiment_num))
 
 
 
