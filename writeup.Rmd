@@ -3,8 +3,11 @@ title: "MonkeyLearn Sentiment Analysis"
 output: html_document
 ---
 
-In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews.
+In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I'll be examining reviews of Slack on the product review site Capterra.
 
+The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we'll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text. Finally, we'll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive.
+
+The opinion unit approach gives us some more fine-grained control over what we're assigning sentiment to, since there can be multiple sentimetns in the same sentence. For instance, "I love Spring time but I hate the allergies that go along with it" would hopefully be broken into the units "I love Spring time" and "but I hate the allergies that go along with it" and assigned the sentiments Positive and Negative, respectively.
 
 
 ### Scraping the Data
@@ -374,11 +377,165 @@ reviews_with_subratings_unnested <-
 ```
 
 
+Let's take a peek at our first 10 rows.
+
 ```{r}
 reviews_with_subratings_unnested %>% 
   slice(1:10) %>% 
   kable()
 ```
+
+
+
+<br>
+
+## Extracting Opinions
+
+
+The `monkeylearn` R package can get us most of the way there. Since we're working with a custom-trained extractor and classifier, the API response is slightly different from ones that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly.
+
+If we get a `NULL` response from our classifier we'll replace it with `replacement_classifier` and likewise for `replacement_extractor`.
+
+```{r}
+replacement_classifier <- tribble(
+  ~category_id, ~probability, ~label,
+  NA_character_, NA_character_, NA_character_
+) %>% list()
+
+
+replacement_extractor <- tribble(
+  ~count, ~tag, ~entity,
+  NA_character_, NA_character_, NA_character_
+) 
+```
+
+We'll use these inside the unnesting helpers below. They're different because of slighly different particularities to the API response.
+
+```{r}
+unnest_result_classifier <- function(df) {
+  out <- df %>% 
+    rowwise() %>% 
+    mutate(
+      res = ifelse(length(res)[[1]] == 0 || is.na(res), replacement_classifier, res) 
+    ) %>% 
+    unnest(res)
+  
+  return(out)
+}
+
+unnest_result_extractor <- function(df) {
+  out <- df 
+  df$res <- df$res %>% 
+    map(dobtools::replace_x, replacement = replacement_extractor)
+  
+  out <- df %>% 
+    unnest(res)
+  
+  return(out)
+}
+
+try_unnest_result_extractor <- safely(unnest_result_extractor)
+try_unnest_result_classifier <- safely(unnest_result_classifier)
+```
+
+
+We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error.
+
+```{r}
+get_classification_batch <- 
+  safely(monkey_classify)
+
+get_extraction_batch <- 
+  safely(monkey_extract)
+```
+
+
+Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
+
+If any errors occur when we send text to the API, we log them in an error log that specifies where the error occurred and return that log along with the full response.
+
+As of `monkeylearn` 2.0 it is possible to send batches of texts to the API and return a dataframe 
+
+
+```{r}
+write_batches <- function(df, id, dir, 
+                          n_texts_per_batch,
+                          start_row = 1,
+                          unnest = FALSE,
+                          write_out = TRUE, ...) {
+  if (substr(id, 1, 3) == "cl_") {
+    type_of_problem <- "classification"
+  } else if (substr(id, 1, 3) == "ex_") {
+    type_of_problem <- "extraction"
+  } else {
+    stop("Not a recognized classifier or extractor id.")
+  }
+  
+  resp <- tibble()
+  n_df_rows <- nrow(df)
+  
+  batch_start_row <- start_row
+  batch_end_row <- batch_start_row + n_texts_per_batch
+  
+  error_log <- ""
+  
+  while(batch_start_row <= n_df_rows) {
+    
+    if (type_of_problem == "classification") {
+      this_batch_nested <- get_classification_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     classifier_id = id, 
+                                     unnest = unnest)
+      this_batch <- this_batch_nested$result %>% 
+        try_unnest_result_classifier()
+      
+    } else if (type_of_problem == "extraction") {
+      this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     extactor_id = id, 
+                                     unnest = unnest)
+      
+      this_batch <- this_batch_nested$result %>% 
+        try_unnest_result_extractor()
+    } 
+    
+    message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
+    
+    if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
+      if (write_out == TRUE) {
+        write_csv(this_batch$result, 
+                  glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+      }
+    
+      resp <- resp %>% 
+        bind_rows(this_batch$result)
+      
+    } else {
+      error_log <- error_log %>% 
+        c(glue("Error between rows {batch_start_row} and {batch_end_row}: 
+               {c(this_batch_nested$error, this_batch$error)}"))
+      
+      message(error_log)
+    }
+    
+    batch_start_row <- batch_start_row + n_texts_per_batch
+    batch_end_row <- batch_start_row + n_texts_per_batch
+    
+    if (batch_end_row > n_df_rows) {
+      batch_end_row <- n_df_rows
+    }
+  }
+  
+  out <- list(resp = resp, 
+              error_log = error_log)
+  
+  return(out)
+}
+```
+
+
+
+
 
 
 
