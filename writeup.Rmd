@@ -11,16 +11,33 @@ In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment 
 
 First off we want to make sure that the website we're considering allows for scraping. We can consult the `robots.txt` file that typically lives at the top level of a website with the handy `robotstxt` package.
 
+```{r setup}
+library(knitr)
+opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+               cache=TRUE, autodep = TRUE,     # Cache and auto-dependson
+               fig.width=12, fig.height=8,
+               cache.extra = list())
+# Format for kables
+options(knitr.table.format = 'html')
+```
+
+
 ```{r}
+library(here)
 library(tidyverse)
 library(rvest)
+library(glue)
+library(knitr)
+library(dobtools)
 ```
+
 
 ```{r source_in, echo=FALSE, message=FALSE}
 all_reviews_slack <- read_csv(here("data", "derived", "all_reviews_slack.csv"))
 reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with_subratings_nested.rds"))
 reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
+data_dir <- glue(here::here("data", "raw"), "/")
 ```
 
 
@@ -33,6 +50,13 @@ robotstxt::paths_allowed(
 ```
 
 Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](). In this case, we'll need each review's rating and sub-ratings as well as its content.
+
+We'll first save the URL where the slack reviews appear.
+
+```{r}
+slack_url <- "https://www.capterra.com/p/135003/Slack/"
+```
+
 
 
 A quick helper for stripping out extra whitespace and newlines from our HTML soup.
@@ -67,6 +91,38 @@ scrape_rating <- function(url, i) {
 }
 
 try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
+```
+
+
+```{r, echo=FALSE}
+scrape_sub_ratings <- function(url, i) {
+  out <- url %>% 
+    read_html() %>% 
+    html_nodes(glue("#review-{i} .palm-one-half")) %>% 
+    html_text() %>% 
+    str_c(collapse = " ") %>% 
+    strip_whitespace_newlines()
+  
+  if (length(out) == 0) {
+    out <- NA_character_
+  }
+  
+  return(out)
+}
+
+scrape_content <- function(url, i) {
+  out <- url %>% 
+    read_html() %>% 
+    html_nodes(glue(".cell-review:nth-child({i}) .color-text")) %>% 
+    html_text() %>% 
+    strip_whitespace_newlines()
+  
+  if (length(out) == 0) {
+    out <- NA_character_
+  }
+  
+  return(out)
+}
 ```
 
 
@@ -184,15 +240,15 @@ get_multiple_pages <- function(urls, review_range = 1:99, ...) {
 
 We'll write our results out to our same data directory.
 
-```{r}
+```{r eval=FALSE}
 all_reviews_slack <- 
-  get_multiple_pages()
+  slack_full_urls %>% get_multiple_pages()
 ```
 
 
 We could also read them all in from our directory and reconstitute the dataframe.
 
-```{r}
+```{r, eval=FALSE}
 make_files <- function() {
   a <- glue(data_dir, "page_{1:35}")
   out <- NULL
@@ -211,6 +267,8 @@ all_reviews_slack <- map_dfr(fls, read_rds) %>%
   drop_na(content)
 ```
 
+
+<br>
 
 
 ### Post-Processing
@@ -290,9 +348,9 @@ split_subratings <- function(inp) {
 
 
 
-Now we can take our raw reviews
+Now we can take our raw reviews and get each sub-rating into a nested dataframe inside a new `sub_ratings_split` column, which can then be unnested
 
-```{r}
+```{r, eval=FALSE}
 reviews_with_subratings <- all_reviews_slack %>% 
   rowwise() %>% 
   mutate(
@@ -313,10 +371,14 @@ reviews_with_subratings_unnested <-
     sub_rating_rating = nums
   ) %>% 
   arrange(page_num, review_num, sub_rating_category) 
-
 ```
 
 
+```{r}
+reviews_with_subratings_unnested %>% 
+  slice(1:10) %>% 
+  kable()
+```
 
 
 

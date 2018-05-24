@@ -1,0 +1,19 @@
+unnamed-chunk-1	
+source_in	all_reviews_slack	data_dir	reviews_with_subratings_nested	reviews_with_subratings_unnested
+unnamed-chunk-2	
+unnamed-chunk-3	slack_url
+unnamed-chunk-4	strip_whitespace_newlines
+unnamed-chunk-5	scrape_rating	try_scrape_rating
+unnamed-chunk-6	scrape_content	scrape_sub_ratings
+unnamed-chunk-7	try_scrape_content	try_scrape_sub_ratings
+unnamed-chunk-8	
+unnamed-chunk-9	get_ratings_and_content
+unnamed-chunk-10	
+unnamed-chunk-11	pages_want	slack_full_urls
+unnamed-chunk-12	get_multiple_pages
+unnamed-chunk-13	
+unnamed-chunk-14	
+unnamed-chunk-15	clean_content	split_pro_cons
+unnamed-chunk-16	split_subratings
+unnamed-chunk-17	
+unnamed-chunk-18	
