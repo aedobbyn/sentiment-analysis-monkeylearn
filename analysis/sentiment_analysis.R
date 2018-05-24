@@ -55,8 +55,17 @@ ggplot(dat_clean) +
   geom_bar(aes(category))
 
 # Breakdown by category and sentiment
-ggplot(sentiment_by_category) +
-  geom_bar(aes(category, mean_sentiment), stat = "identity")
+ggplot(sentiment_by_category %>% 
+         arrange(desc(mean_sentiment))) +
+  geom_bar(aes(category, mean_sentiment), stat = "identity") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+
 
 
 
@@ -76,8 +85,11 @@ dat_tokens_unnested <-
 
 dat_tokens_unnested <-  
   dat_tokens_unnested %>% 
-  select(-is_num, -contains_num) %>% 
-  left_join(tidytext::sentiments %>% rename(word_sentiment), by = "word")
+  # select(-is_num, -contains_num) %>% 
+  left_join(tidytext::sentiments %>% 
+              rename(word_sentiment = sentiment,
+                     score_sentiment = score), 
+            by = "word")
 
 # Need full content (document) to bind tf idf 
 
@@ -101,6 +113,9 @@ dat_tokens_unnested_first_letter <-
 # Plot sentiment by first letter
 ggplot(dat_tokens_unnested_first_letter) +
   geom_smooth(aes(first_letter_num, sentiment_num))
+
+ggplot(dat_tokens_unnested_first_letter) +
+  geom_smooth(aes(first_letter_num, score))
 
 
 

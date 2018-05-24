@@ -1,0 +1,192 @@
+---
+title: "MonkeyLearn Sentiment Analysis"
+output: html_document
+---
+
+In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews.
+
+
+
+### Scraping the Data
+
+First off we want to make sure that the website we're considering allows for scraping. We can consult the `robots.txt` file that typically lives at the top level of a website with the handy `robotstxt` package.
+
+```{r}
+library(tidyverse)
+library(rvest)
+```
+
+
+```{r}
+robotstxt::paths_allowed(
+  domain = "capterra.com",
+  path = "/",
+  bot = "*"
+)
+```
+
+Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](). In this case, we'll need each review's rating and sub-ratings as well as its content.
+
+
+A quick helper for stripping out extra whitespace and newlines from our HTML soup.
+
+```{r}
+strip_whitespace_newlines <- function(t) {
+  out <- t %>% 
+    str_replace_all("\\n", " ") %>% 
+    trimws() 
+  
+  return(out)
+}
+```
+
+The approach here
+
+We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
+
+```{r}
+scrape_rating <- function(url, i) {
+  out <- url %>% 
+    read_html() %>% 
+    html_nodes(glue("#review-{i} .overall-rating")) %>% 
+    html_text() %>% 
+    strip_whitespace_newlines()
+  
+  if (length(out) == 0) {
+    out <- NA_character_
+  }
+  
+  return(out)
+}
+
+try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
+```
+
+
+Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with `str_c(collapse = " ")` for now. We'll break those out later into a nested list column.
+
+
+```{r}
+try_scrape_sub_ratings <- possibly(scrape_sub_ratings, otherwise = NA_character_)
+try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
+```
+
+
+```{r}
+try_scrape_content(slack_url, 123)
+```
+
+
+Now all that's left is to string these all together in the right order inside our main scraping function, `get_ratings_and_content`. Here we jitter the amount of wait time between each iteration using a uniform distribution around `sleep`, plus or minus half a second.
+
+Throughout this post I'll be writing data out to small files in a directory so that if our loop fails somewhere along the way for any number of reasons, we won't lose all the data we've collected up to that point in the loop and can pick up again where we errored out on the first go-round. In this case, if we ask `get_ratings_and_content` to write what we've got so far, we create a new file in whatever `write_path` is set to.
+
+
+
+```{r}
+get_ratings_and_content <- function(url, review_range = 1:50,
+                                    sleep = 1,
+                                    write_out = TRUE, write_path = data_dir) {
+  ifelse(sleep <= 1, 1, sleep)
+  
+  out <- tibble()
+  page <- ifelse(str_detect(url, "page"), 
+                 qdapRegex::ex_between(url, "page=", "&"),
+                 NA_character_)
+  
+  for (i in review_range) {
+    message(glue("Beginning scrape of page {page}, review {i}"))
+    this_rating <- try_scrape_rating(url, i)
+    
+    this_sub_ratings <- try_scrape_sub_ratings(url, i)
+
+    this_cont <- try_scrape_content(url, i)
+
+    this_review <- tibble(
+      rating = this_rating,
+      sub_ratings = this_sub_ratings,
+      content = this_cont,
+      page_num = page,
+      review_num = i
+    ) 
+    
+    if (write_out == TRUE) {
+      write_rds(this_review, path = glue(data_dir, "page_{page}_rating_{i}.rds"))
+    }
+    
+    out <- out %>% 
+      bind_rows(this_review)
+    
+    Sys.sleep(runif(1, sleep - 0.5, sleep + 0.5))
+  }
+  
+  out <- out %>% 
+    rowwise() %>% 
+    mutate(
+      rating_perc = ifelse(is.na(rating), NA_character_, 
+                           parse(text = rating) %>% eval()) %>% as.character()
+    ) %>% 
+    select(page_num, review_num, rating, sub_ratings, rating_perc, content)
+  
+  return(out)
+}
+
+```
+
+
+
+Let's give it a go.
+
+```{r}
+get_ratings_and_content(url = slack_url, 
+                        review_range = 1:3)
+```
+
+
+
+Next a few quick cleaning steps. We'll `clean_content` by removing anything with more than one space.
+
+Content consists of sub-categories like "Pros," "Cons," and "Overall". We can split those each into their own columns with a few more regexes.
+
+```{r}
+clean_content <- function(t) {
+  out <- t %>% 
+    t %>% 
+    str_replace_all("[ ]{2,}", "")   
+  
+  return(out)
+}
+
+
+split_pro_cons <- function(t) {
+  out <- t %>% 
+    rowwise() %>% 
+    mutate(
+      content = content %>% clean_content(),
+      pros = str_extract(content, "(?<=Pros:).*?(?=Cons:)")
+    )
+  
+  out <- out %>% 
+    rowwise() %>% 
+    mutate(
+      cons = ifelse(str_detect(content, "Overall:"), 
+                    str_extract(content, "(?<=Cons:).*?(?=Overall:)"),
+                    str_extract(content, "(?<=Cons:).*")),
+      overall = ifelse(str_detect(content, "Overall:"),
+                       str_extract(content, "(?<=Overall:).*"),
+                       NA_character_)
+    )
+ 
+  return(out)
+}
+```
+
+
+
+
+
+
+
+
+
+
