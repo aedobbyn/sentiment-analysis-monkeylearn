@@ -17,3 +17,7 @@ unnamed-chunk-15	clean_content	split_pro_cons
 unnamed-chunk-16	split_subratings
 unnamed-chunk-17	
 unnamed-chunk-18	
+unnamed-chunk-19	replacement_classifier	replacement_extractor
+unnamed-chunk-20	try_unnest_result_classifier	try_unnest_result_extractor	unnest_result_classifier	unnest_result_extractor
+unnamed-chunk-21	get_classification_batch	get_extraction_batch
+unnamed-chunk-22	write_batches

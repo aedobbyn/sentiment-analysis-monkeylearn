@@ -122,29 +122,117 @@ $(document).ready(function () {
 </div>
 
 
-<p>In this post I’ll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews.</p>
+<p>In this post I’ll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I’ll be examining reviews of Slack on the product review site Capterra.</p>
+<p>The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we’ll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text. Finally, we’ll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive.</p>
+<p>The opinion unit approach gives us some more fine-grained control over what we’re assigning sentiment to, since there can be multiple sentimetns in the same sentence. For instance, “I love Spring time but I hate the allergies that go along with it” would hopefully be broken into the units “I love Spring time” and “but I hate the allergies that go along with it” and assigned the sentiments Positive and Negative, respectively.</p>
 <div id="scraping-the-data" class="section level3">
 <h3>Scraping the Data</h3>
 <p>First off we want to make sure that the website we’re considering allows for scraping. We can consult the <code>robots.txt</code> file that typically lives at the top level of a website with the handy <code>robotstxt</code> package.</p>
 <pre class="r"><code>library(knitr)
-opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
                cache=TRUE, autodep = TRUE,     # Cache and auto-dependson
                fig.width=12, fig.height=8,
                cache.extra = list())
 # Format for kables
 options(knitr.table.format = 'html')</code></pre>
+<pre class="r"><code>library(here)
+library(tidyverse)
+library(rvest)
+library(monkeylearn)
+library(glue)
+library(knitr)
+library(dobtools)</code></pre>
+<pre class="r"><code>robotstxt::paths_allowed(
+  domain = &quot;capterra.com&quot;,
+  path = &quot;/&quot;,
+  bot = &quot;*&quot;
+)</code></pre>
 <pre><code>## [1] TRUE</code></pre>
 <p>Now that we know we’re good to go, we can start scraping Capterra. I’ll use the popular package <code>rvest</code> to do the scraping. <code>rvest</code> allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the <a href>SelectorGadget Chrome extension</a>. In this case, we’ll need each review’s rating and sub-ratings as well as its content.</p>
 <p>We’ll first save the URL where the slack reviews appear.</p>
+<pre class="r"><code>slack_url &lt;- &quot;https://www.capterra.com/p/135003/Slack/&quot;</code></pre>
 <p>A quick helper for stripping out extra whitespace and newlines from our HTML soup.</p>
+<pre class="r"><code>strip_whitespace_newlines &lt;- function(t) {
+  out &lt;- t %&gt;% 
+    str_replace_all(&quot;\\n&quot;, &quot; &quot;) %&gt;% 
+    trimws() 
+  
+  return(out)
+}</code></pre>
 <p>The approach here</p>
 <p>We’ll wrap the <code>scrape_rating</code> function in a trycatch so that we return an <code>NA</code> if something goes wrong rather than an error.</p>
+<pre class="r"><code>scrape_rating &lt;- function(url, i) {
+  out &lt;- url %&gt;% 
+    read_html() %&gt;% 
+    html_nodes(glue(&quot;#review-{i} .overall-rating&quot;)) %&gt;% 
+    html_text() %&gt;% 
+    strip_whitespace_newlines()
+  
+  if (length(out) == 0) {
+    out &lt;- NA_character_
+  }
+  
+  return(out)
+}
+
+try_scrape_rating &lt;- possibly(scrape_rating, otherwise = NA_character_)</code></pre>
 <p>Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with <code>str_c(collapse = &quot; &quot;)</code> for now. We’ll break those out later into a nested list column.</p>
+<pre class="r"><code>try_scrape_sub_ratings &lt;- possibly(scrape_sub_ratings, otherwise = NA_character_)
+try_scrape_content &lt;- possibly(scrape_content, otherwise = NA_character_)</code></pre>
+<pre class="r"><code>try_scrape_content(slack_url, 123)</code></pre>
 <pre><code>## [1] NA</code></pre>
 <p>Now all that’s left is to string these all together in the right order inside our main scraping function, <code>get_ratings_and_content</code>. In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we’re correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.</p>
 <p>Here we jitter the amount of wait time between each iteration using a uniform distribution around <code>sleep</code>, plus or minus half a second.</p>
 <p>Throughout this post I’ll be writing data out to small files in a directory so that if our loop fails somewhere along the way for any number of reasons, we won’t lose all the data we’ve collected up to that point in the loop and can pick up again where we errored out on the first go-round. In this case, if we ask <code>get_ratings_and_content</code> to write what we’ve got so far, we create a new file in whatever <code>write_path</code> is set to.</p>
+<pre class="r"><code>get_ratings_and_content &lt;- function(url, review_range = 1:50,
+                                    sleep = 1,
+                                    write_out = TRUE, write_path = data_dir) {
+  ifelse(sleep &lt;= 1, 1, sleep)
+  
+  out &lt;- tibble()
+  page &lt;- ifelse(str_detect(url, &quot;page&quot;), 
+                 qdapRegex::ex_between(url, &quot;page=&quot;, &quot;&amp;&quot;),
+                 NA_character_)
+  
+  for (i in review_range) {
+    message(glue(&quot;Beginning scrape of page {page}, review {i}&quot;))
+    this_rating &lt;- try_scrape_rating(url, i)
+    
+    this_sub_ratings &lt;- try_scrape_sub_ratings(url, i)
+
+    this_cont &lt;- try_scrape_content(url, i)
+
+    this_review &lt;- tibble(
+      rating = this_rating,
+      sub_ratings = this_sub_ratings,
+      content = this_cont,
+      page_num = page,
+      review_num = i
+    ) 
+    
+    if (write_out == TRUE) {
+      write_rds(this_review, path = glue(data_dir, &quot;page_{page}_rating_{i}.rds&quot;))
+    }
+    
+    out &lt;- out %&gt;% 
+      bind_rows(this_review)
+    
+    Sys.sleep(runif(1, sleep - 0.5, sleep + 0.5))
+  }
+  
+  out &lt;- out %&gt;% 
+    rowwise() %&gt;% 
+    mutate(
+      rating_perc = ifelse(is.na(rating), NA_character_, 
+                           parse(text = rating) %&gt;% eval()) %&gt;% as.character()
+    ) %&gt;% 
+    select(page_num, review_num, rating, sub_ratings, rating_perc, content)
+  
+  return(out)
+}</code></pre>
 <p>Let’s give it a go.</p>
+<pre class="r"><code>get_ratings_and_content(url = slack_url, 
+                        review_range = 1:3)</code></pre>
 <pre><code>## Source: local data frame [3 x 6]
 ## Groups: &lt;by row&gt;
 ## 
@@ -157,20 +245,129 @@ options(knitr.table.format = 'html')</code></pre>
 <p>The original URL, <a href="https://www.capterra.com/p/135003/Slack/" class="uri">https://www.capterra.com/p/135003/Slack/</a>, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the “Show more reviews” button at the bottom of the page. This fetches more reviews from the server, but doesn’t change the URL at all. That means that just using <code>rvest</code> and this URL, we can only scrape the first 99 reviews.</p>
 <p>However, through a bit of investigation of the “Show more reviews” button in the Chrome inspector, I saw that inside the link’s <code>a</code> tag is a <code>data-url</code> parameter set to <code>&quot;/gdm_reviews?page=1&amp;product_id=135003&quot;</code>. Piecing that together with our original url, <a href="https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003" class="uri">https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003</a> reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after <code>page=</code>.</p>
 <p>Now we can construct the URLs for all the pages we want to iterate through. We’ll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.</p>
+<pre class="r"><code>pages_want &lt;- 1:45
+slack_full_urls &lt;- str_c(&quot;https://www.capterra.com/gdm_reviews?page=&quot;, pages_want, &quot;&amp;product_id=135003&quot;, sep = &quot;&quot;)</code></pre>
 <p>Now we can wrap <code>get_ratings_and_content</code> up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we’ll set our default <code>review_range</code> to that.</p>
 <p>In <code>get_ratings_and_content</code> we included the page and rating number in the review file name as its unique identifier.</p>
+<pre class="r"><code>get_multiple_pages &lt;- function(urls, review_range = 1:99, ...) {
+  out &lt;- tibble()
+  for (u in urls) {
+    this_page &lt;- get_ratings_and_content(u, review_range = review_range, ...)
+    out &lt;- out %&gt;% 
+      bind_rows(this_page)
+  }
+  return(out)
+}</code></pre>
 <p>We’ll write our results out to our same data directory.</p>
+<pre class="r"><code>all_reviews_slack &lt;- 
+  slack_full_urls %&gt;% get_multiple_pages()</code></pre>
 <p>We could also read them all in from our directory and reconstitute the dataframe.</p>
+<pre class="r"><code>make_files &lt;- function() {
+  a &lt;- glue(data_dir, &quot;page_{1:35}&quot;)
+  out &lt;- NULL
+  
+  for (i in 1:99) {
+    b &lt;- c(a %&gt;% map_chr(str_c, &quot;_rating_&quot;, i, &quot;.rds&quot;, sep = &quot;&quot;))
+    out &lt;- c(out, b)
+  }
+  return(out)
+}
+
+fls &lt;- make_files()
+
+all_reviews_slack &lt;- map_dfr(fls, read_rds) %&gt;% 
+  unnest(page_num) %&gt;% 
+  drop_na(content)</code></pre>
 <p><br></p>
 </div>
 <div id="post-processing" class="section level3">
 <h3>Post-Processing</h3>
 <p>Next a few quick cleaning steps. We’ll <code>clean_content</code> by removing anything with more than one space.</p>
 <p>Content consists of sub-categories like “Pros,” “Cons,” and “Overall”. We can split those each into their own columns with a few more regexes.</p>
+<pre class="r"><code>clean_content &lt;- function(t) {
+  out &lt;- t %&gt;% 
+    t %&gt;% 
+    str_replace_all(&quot;[ ]{2,}&quot;, &quot;&quot;)   
+  
+  return(out)
+}
+
+
+split_pro_cons &lt;- function(t) {
+  out &lt;- t %&gt;% 
+    rowwise() %&gt;% 
+    mutate(
+      content = content %&gt;% clean_content(),
+      pros = str_extract(content, &quot;(?&lt;=Pros:).*?(?=Cons:)&quot;)
+    )
+  
+  out &lt;- out %&gt;% 
+    rowwise() %&gt;% 
+    mutate(
+      cons = ifelse(str_detect(content, &quot;Overall:&quot;), 
+                    str_extract(content, &quot;(?&lt;=Cons:).*?(?=Overall:)&quot;),
+                    str_extract(content, &quot;(?&lt;=Cons:).*&quot;)),
+      overall = ifelse(str_detect(content, &quot;Overall:&quot;),
+                       str_extract(content, &quot;(?&lt;=Overall:).*&quot;),
+                       NA_character_)
+    )
+ 
+  return(out)
+}</code></pre>
 <p>We similarly want to split sub-ratings up into their own rows. When we scraped subratings concatenated all of them into one long string.</p>
 <p>For each long string, we’ll extract all numbers and the corresponding name of the sub-rating the rating number belongs to.</p>
 <p>If something goes wrong and there are more subrating numbers than names or vice versa, we’ll alert ourselves of this by returning a tibble that just says “length_mismatch”.</p>
+<pre class="r"><code>split_subratings &lt;- function(inp) {
+  
+  if (is.na(inp)) {
+    out &lt;- tibble(names = NA_character_, nums = NA_character_)
+    return(out)
+  } 
+  
+  nums &lt;- inp %&gt;% 
+    str_extract_all(&quot;([0-9 ]+\\/[0-9 ]+)&quot;) %&gt;% 
+    map(str_replace_all, &quot;[ ]+&quot;, &quot;&quot;) %&gt;% 
+    as_vector()
+  nums &lt;- nums[nums != &quot;&quot;]
+  
+  names &lt;- inp %&gt;% 
+    str_split(&quot;([0-9\\. ]+\\/[0-9 ]+)&quot;) %&gt;% 
+    as_vector()
+  names &lt;- names[names != &quot;&quot;]
+  
+  if (length(nums) != length(names)) {
+    out &lt;- tibble(names = &quot;length_mismatch&quot;, nums = &quot;length_mismatch&quot;)
+    return(out)
+  }
+  
+  out &lt;- tibble(names = names, nums = nums)
+  return(out)
+}</code></pre>
 <p>Now we can take our raw reviews and get each sub-rating into a nested dataframe inside a new <code>sub_ratings_split</code> column, which can then be unnested</p>
+<pre class="r"><code>reviews_with_subratings &lt;- all_reviews_slack %&gt;% 
+  rowwise() %&gt;% 
+  mutate(
+    sub_ratings_split = split_subratings(sub_ratings) %&gt;% list()
+  ) %&gt;% 
+  select(-sub_ratings) %&gt;% 
+  drop_na(content) %&gt;% 
+  filter(!content %in% c(&quot;&quot;, &quot; &quot;)) %&gt;% 
+  mutate(
+    page_num = as.numeric(page_num)
+  )
+
+reviews_with_subratings_unnested &lt;- 
+  reviews_with_subratings %&gt;% 
+  unnest() %&gt;% 
+  rename(
+    sub_rating_category = names,
+    sub_rating_rating = nums
+  ) %&gt;% 
+  arrange(page_num, review_num, sub_rating_category) </code></pre>
+<p>Let’s take a peek at our first 10 rows.</p>
+<pre class="r"><code>reviews_with_subratings_unnested %&gt;% 
+  slice(1:10) %&gt;% 
+  kable()</code></pre>
 <table>
 <thead>
 <tr>
@@ -397,6 +594,129 @@ Ease of Use
 </tr>
 </tbody>
 </table>
+<p><br></p>
+</div>
+<div id="extracting-opinions" class="section level2">
+<h2>Extracting Opinions</h2>
+<p>The <code>monkeylearn</code> R package can get us most of the way there. Since we’re working with a custom-trained extractor and classifier, the API response is slightly different from ones that the package is set up to handle. In particular, the package’s handling of <code>NULL</code> values doesn’t extend perfectly to this extractor and classifier, so we’ll need to do a slight modification to change the missing values into values that we can unnest correctly.</p>
+<p>If we get a <code>NULL</code> response from our classifier we’ll replace it with <code>replacement_classifier</code> and likewise for <code>replacement_extractor</code>.</p>
+<pre class="r"><code>replacement_classifier &lt;- tribble(
+  ~category_id, ~probability, ~label,
+  NA_character_, NA_character_, NA_character_
+) %&gt;% list()
+
+
+replacement_extractor &lt;- tribble(
+  ~count, ~tag, ~entity,
+  NA_character_, NA_character_, NA_character_
+) </code></pre>
+<p>We’ll use these inside the unnesting helpers below. They’re different because of slighly different particularities to the API response.</p>
+<pre class="r"><code>unnest_result_classifier &lt;- function(df) {
+  out &lt;- df %&gt;% 
+    rowwise() %&gt;% 
+    mutate(
+      res = ifelse(length(res)[[1]] == 0 || is.na(res), replacement_classifier, res) 
+    ) %&gt;% 
+    unnest(res)
+  
+  return(out)
+}
+
+unnest_result_extractor &lt;- function(df) {
+  out &lt;- df 
+  df$res &lt;- df$res %&gt;% 
+    map(dobtools::replace_x, replacement = replacement_extractor)
+  
+  out &lt;- df %&gt;% 
+    unnest(res)
+  
+  return(out)
+}
+
+try_unnest_result_extractor &lt;- safely(unnest_result_extractor)
+try_unnest_result_classifier &lt;- safely(unnest_result_classifier)</code></pre>
+<p>We wrap the usual <code>monkeylearn</code> package functions <code>monkey_classify</code> and <code>monkey_extract</code> in a trycatch using <code>purrr::safely</code> which returns a list of two things, one of which is always <code>NULL</code>; the result of the function and an error. If the function fails, we get the error and a <code>NULL</code> response and if it succeeds we get the response and a <code>NULL</code> error.</p>
+<pre class="r"><code>get_classification_batch &lt;- 
+  safely(monkey_classify)
+
+get_extraction_batch &lt;- 
+  safely(monkey_extract)</code></pre>
+<p>Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an <code>id</code> which can be either an extractor ID or a classifier ID set <code>type_of_problem</code> to either <code>&quot;classification&quot;</code> or <code>&quot;extraction&quot;</code> depending on the ID. (All classifier IDs begin with <code>&quot;cl_&quot;</code> and all extractor IDs begin with `<code>&quot;ex_&quot;</code>).</p>
+<p>If any errors occur when we send text to the API, we log them in an error log that specifies where the error occurred and return that log along with the full response.</p>
+<p>As of <code>monkeylearn</code> 2.0 it is possible to send batches of texts to the API and return a dataframe relating each input to its (often) multiple outputs. That allows us to include a <code>n_texts_per_batch</code> argument which we’ll normally set to 200, the recommended maximum number of texts to be sent to the API at once. <code>monkeylearn</code> already takes care of rate limiting, so we don’t need to put in any custom sleeps ourselves.</p>
+<pre class="r"><code>write_batches &lt;- function(df, id, dir, 
+                          n_texts_per_batch,
+                          start_row = 1,
+                          unnest = FALSE,
+                          write_out = TRUE, ...) {
+  if (substr(id, 1, 3) == &quot;cl_&quot;) {
+    type_of_problem &lt;- &quot;classification&quot;
+  } else if (substr(id, 1, 3) == &quot;ex_&quot;) {
+    type_of_problem &lt;- &quot;extraction&quot;
+  } else {
+    stop(&quot;Not a recognized classifier or extractor id.&quot;)
+  }
+  
+  resp &lt;- tibble()
+  n_df_rows &lt;- nrow(df)
+  
+  batch_start_row &lt;- start_row
+  batch_end_row &lt;- batch_start_row + n_texts_per_batch
+  
+  error_log &lt;- &quot;&quot;
+  
+  while(batch_start_row &lt;= n_df_rows) {
+    
+    if (type_of_problem == &quot;classification&quot;) {
+      this_batch_nested &lt;- get_classification_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     classifier_id = id, 
+                                     unnest = unnest)
+      this_batch &lt;- this_batch_nested$result %&gt;% 
+        try_unnest_result_classifier()
+      
+    } else if (type_of_problem == &quot;extraction&quot;) {
+      this_batch_nested &lt;- get_extraction_batch(df[batch_start_row:batch_end_row, ],
+                                     col = content,
+                                     extactor_id = id, 
+                                     unnest = unnest)
+      
+      this_batch &lt;- this_batch_nested$result %&gt;% 
+        try_unnest_result_extractor()
+    } 
+    
+    message(glue(&quot;Processed rows {batch_start_row} to {batch_end_row}.&quot;))
+    
+    if (is.null(this_batch_nested$error) &amp;&amp; is.null(this_batch$error)) {
+      if (write_out == TRUE) {
+        write_csv(this_batch$result, 
+                  glue(&quot;{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv&quot;))
+      }
+    
+      resp &lt;- resp %&gt;% 
+        bind_rows(this_batch$result)
+      
+    } else {
+      error_log &lt;- error_log %&gt;% 
+        c(glue(&quot;Error between rows {batch_start_row} and {batch_end_row}: 
+               {c(this_batch_nested$error, this_batch$error)}&quot;))
+      
+      message(error_log)
+    }
+    
+    batch_start_row &lt;- batch_start_row + n_texts_per_batch
+    batch_end_row &lt;- batch_start_row + n_texts_per_batch
+    
+    if (batch_end_row &gt; n_df_rows) {
+      batch_end_row &lt;- n_df_rows
+    }
+  }
+  
+  out &lt;- list(resp = resp, 
+              error_log = error_log)
+  
+  return(out)
+}</code></pre>
 </div>
 
 
