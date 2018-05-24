@@ -16,6 +16,13 @@ library(tidyverse)
 library(rvest)
 ```
 
+```{r source_in, echo=FALSE, message=FALSE}
+all_reviews_slack <- read_csv(here("data", "derived", "all_reviews_slack.csv"))
+reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with_subratings_nested.rds"))
+reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
+
+```
+
 
 ```{r}
 robotstxt::paths_allowed(
@@ -77,10 +84,11 @@ try_scrape_content(slack_url, 123)
 ```
 
 
-Now all that's left is to string these all together in the right order inside our main scraping function, `get_ratings_and_content`. Here we jitter the amount of wait time between each iteration using a uniform distribution around `sleep`, plus or minus half a second.
+Now all that's left is to string these all together in the right order inside our main scraping function, `get_ratings_and_content`. In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we're correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.
+
+Here we jitter the amount of wait time between each iteration using a uniform distribution around `sleep`, plus or minus half a second.
 
 Throughout this post I'll be writing data out to small files in a directory so that if our loop fails somewhere along the way for any number of reasons, we won't lose all the data we've collected up to that point in the loop and can pick up again where we errored out on the first go-round. In this case, if we ask `get_ratings_and_content` to write what we've got so far, we create a new file in whatever `write_path` is set to.
-
 
 
 ```{r}
@@ -143,6 +151,69 @@ get_ratings_and_content(url = slack_url,
 ```
 
 
+The original URL, https://www.capterra.com/p/135003/Slack/, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL, we can only scrape the first 99 reviews.
+
+However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a `data-url` parameter set to `"/gdm_reviews?page=1&product_id=135003"`. Piecing that together with our original url, https://www.capterra.com/gdm_reviews?page=1&product_id=135003 reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after `page=`.
+
+Now we can construct the URLs for all the pages we want to iterate through. We'll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.
+
+```{r}
+pages_want <- 1:45
+slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
+```
+
+
+Now we can wrap `get_ratings_and_content` up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we'll set our default `review_range` to that.
+
+In `get_ratings_and_content` we included the page and rating number in the review file name as its unique identifier.
+
+
+
+```{r}
+get_multiple_pages <- function(urls, review_range = 1:99, ...) {
+  out <- tibble()
+  for (u in urls) {
+    this_page <- get_ratings_and_content(u, review_range = review_range, ...)
+    out <- out %>% 
+      bind_rows(this_page)
+  }
+  return(out)
+}
+```
+
+
+We'll write our results out to our same data directory.
+
+```{r}
+all_reviews_slack <- 
+  get_multiple_pages()
+```
+
+
+We could also read them all in from our directory and reconstitute the dataframe.
+
+```{r}
+make_files <- function() {
+  a <- glue(data_dir, "page_{1:35}")
+  out <- NULL
+  
+  for (i in 1:99) {
+    b <- c(a %>% map_chr(str_c, "_rating_", i, ".rds", sep = ""))
+    out <- c(out, b)
+  }
+  return(out)
+}
+
+fls <- make_files()
+
+all_reviews_slack <- map_dfr(fls, read_rds) %>% 
+  unnest(page_num) %>% 
+  drop_na(content)
+```
+
+
+
+### Post-Processing
 
 Next a few quick cleaning steps. We'll `clean_content` by removing anything with more than one space.
 
@@ -182,9 +253,68 @@ split_pro_cons <- function(t) {
 ```
 
 
+We similarly want to split sub-ratings up into their own rows. When we scraped subratings concatenated all of them into one long string. 
+
+For each long string, we'll extract all numbers and the corresponding name of the sub-rating the rating number belongs to.
+
+If something goes wrong and there are more subrating numbers than names or vice versa, we'll alert ourselves of this by returning a tibble that just says "length_mismatch".
+
+```{r}
+split_subratings <- function(inp) {
+  
+  if (is.na(inp)) {
+    out <- tibble(names = NA_character_, nums = NA_character_)
+    return(out)
+  } 
+  
+  nums <- inp %>% 
+    str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>% 
+    map(str_replace_all, "[ ]+", "") %>% 
+    as_vector()
+  nums <- nums[nums != ""]
+  
+  names <- inp %>% 
+    str_split("([0-9\\. ]+\\/[0-9 ]+)") %>% 
+    as_vector()
+  names <- names[names != ""]
+  
+  if (length(nums) != length(names)) {
+    out <- tibble(names = "length_mismatch", nums = "length_mismatch")
+    return(out)
+  }
+  
+  out <- tibble(names = names, nums = nums)
+  return(out)
+}
+```
 
 
 
+Now we can take our raw reviews
+
+```{r}
+reviews_with_subratings <- all_reviews_slack %>% 
+  rowwise() %>% 
+  mutate(
+    sub_ratings_split = split_subratings(sub_ratings) %>% list()
+  ) %>% 
+  select(-sub_ratings) %>% 
+  drop_na(content) %>% 
+  filter(!content %in% c("", " ")) %>% 
+  mutate(
+    page_num = as.numeric(page_num)
+  )
+
+reviews_with_subratings_unnested <- 
+  reviews_with_subratings %>% 
+  unnest() %>% 
+  rename(
+    sub_rating_category = names,
+    sub_rating_rating = nums
+  ) %>% 
+  arrange(page_num, review_num, sub_rating_category) 
+
+```
 
 
 
