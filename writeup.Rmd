@@ -1,11 +1,20 @@
 ---
 title: "MonkeyLearn Sentiment Analysis"
-output: html_document
+output:
+  html_document:
+    keep_md: true
+    toc: true
+    theme: yeti
+  github_document:
+    toc: true
+  pdf_document:
+    keep_tex: true
+    toc: true
 ---
 
 In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I'll be examining reviews of Slack on the product review site Capterra.
 
-The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we'll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text. Finally, we'll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive.
+The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we'll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text.  Finally, we'll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).
 
 The opinion unit approach gives us some more fine-grained control over what we're assigning sentiment to, since there can be multiple sentimetns in the same sentence. For instance, "I love Spring time but I hate the allergies that go along with it" would hopefully be broken into the units "I love Spring time" and "but I hate the allergies that go along with it" and assigned the sentiments Positive and Negative, respectively.
 
@@ -394,10 +403,14 @@ reviews_with_subratings_unnested %>%
 
 <br>
 
-## Extracting Opinions
+Now onto the data processing! This is where MonkeyLearn's custom modules come in. They make it simple to send data their way for extraction or classification without having to build, train, test, and iterate on a model ourselves.
 
 
-The `monkeylearn` R package can get us most of the way there. Since we're working with a custom-trained extractor and classifier, the API response is slightly different from ones that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly.
+## Extracting Opinions and Classifying Topics & Sentiment
+
+First step is to extract opinion units from our review content. Each review will have one or many opinion units. What we want to end up with is one row per opinion unit, meaning multiple rows per original content line. Next, we send each opinion unit to the API to be classified into one or multiple topics and assigned a sentiment (Positive, Negative, or Neutral). For topic classifications, we'll only worry about the "leaf" topics for these purposes.[^1]
+
+The `monkeylearn` R package can get us most of the way there. Since we're working with custom-trained extractors and classifiers, the API response is slightly different from ones that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly.
 
 If we get a `NULL` response from our classifier we'll replace it with `replacement_classifier` and likewise for `replacement_extractor`.
 
@@ -552,7 +565,7 @@ write_extraction_batches <- function(df, n_texts_per_batch = 200,
 
 write_classification_batches <- function(df, n_texts_per_batch = 200, 
                                          dir = topic_batches_dir, ...) {
-  write_batches(df, id = classifier_id, n_texts_per_batch = n_texts_per_batch,
+  write_batches(df, id = topic_id, n_texts_per_batch = n_texts_per_batch,
                 dir = dir, ...)
 }
 ```
@@ -639,7 +652,7 @@ dat <- dat %>%
 What about categories?
 
 ```{r}
-dat$cateogry %>% factor() %>% levels()
+dat$category %>% factor() %>% levels()
 ```
 
 We can see there are some categories labeled "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly.
@@ -656,7 +669,7 @@ dat_clean <-
 
 
 
-What is the interaction between the two main things of interest here, category and sentiment?
+What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each cateogry.
 
 ```{r}
 sentiment_by_category <- 
@@ -670,6 +683,20 @@ sentiment_by_category <-
 sentiment_by_category %>% 
   kable()
 ```
+
+`r sentiment_by_category[which(sentiment_by_category$mean_sentiment == min(sentiment_by_category$mean_sentiment)), ]$category` gets the lowest overall sentiment, whereas `r sentiment_by_category[which(sentiment_by_category$mean_sentiment == max(sentiment_by_category$mean_sentiment)), ]$category` gets the highest.
+
+```{r}
+ggplot(sentiment_by_category) +
+  geom_bar(aes(fct_reorder(category, mean_sentiment), mean_sentiment), stat = "identity") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Sentiment by Category") +
+  labs(x = "Category", y = "Sentiment")
+```
+
+
+
 
 
 ### Down to the word level
@@ -688,6 +715,25 @@ dat_tokens_unnested <-
     n_words_total = n
   )
 
+```
+
+
+The `tidytext` package also includes a `sentiments` dataset which we can join on our words to get a classification of the words' sentiment in three different lexicons as well as its score on a scale of -5 (negative) to 5 (positive). (`?tidytext::sentiments` for a full explanation of the dataset.) For example:
+
+```{r}
+sentiments %>% filter(word == "yucky")
+```
+
+and 
+
+```{r}
+sentiments %>% filter(word == "yummy")
+```
+
+(Don't ask me why yummy is more positive than yucky is negative `emo::ji("laughing")`.) Anyway, let's join this on our dataset by "word".
+
+
+```{r}
 dat_tokens_unnested <-  
   dat_tokens_unnested %>% 
   select(-is_num, -contains_num) %>%
@@ -697,6 +743,60 @@ dat_tokens_unnested <-
             by = "word")
 ```
 
+
+
+Do the words that make up an opinion unit have a significatn effect on the sentiment it's assigned by MonkeyLearn?
+
+```{r}
+lm(data = dat_tokens_unnested %>% drop_na(sentiment_num, score_sentiment), 
+   sentiment_num ~ score_sentiment) %>% 
+  summary() %>% 
+  tidy()
+```
+
+Yes -- words with more positive sentiments tend to occur in more positive opinion units.
+
+
+As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
+
+We'll extract just the first letter of the word and assign it the number of the alphabet from 1 to 24.
+
+```{r}
+dat_tokens_unnested_first_letter <- 
+  dat_tokens_unnested %>% 
+  rowwise() %>% 
+  mutate(
+    first_letter = substr(word, 1, 1),
+    first_letter_num = which(letters == first_letter)
+  ) 
+
+```
+
+```{r, echo=FALSE}
+ggplot(dat_tokens_unnested_first_letter) +
+  geom_smooth(aes(first_letter_num, sentiment_num),
+              colour = "blue") +
+  geom_smooth(aes(first_letter_num, score_sentiment),
+              colour = "red") +
+  labs(x = "First letter", y = "Sentiment") +
+  ggtitle("Relationship between a word's first letter on its sentiment") +
+  theme_bw()
+```
+
+
+What about the statistical relationship?
+
+```{r}
+lm(data = dat_tokens_unnested_first_letter %>% drop_na(first_letter_num, score_sentiment), 
+   first_letter_num ~ score_sentiment) %>% 
+  summary() %>% 
+  tidy()
+```
+
+Not significant, as we might expect.
+
+
+[^1]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
 
 
 

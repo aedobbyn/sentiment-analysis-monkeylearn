@@ -1,4 +1,4 @@
-unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools
+unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext
 source_in	all_reviews_slack	read_csv	here	reviews_with_subratings_nested	reviews_with_subratings_unnested	data_dir	glue	dat
 unnamed-chunk-2	paths_allowed
 unnamed-chunk-3	slack_url
@@ -20,7 +20,7 @@ unnamed-chunk-18	replacement_classifier	tribble	category_id	probability	label	%>
 unnamed-chunk-19	unnest_result_classifier	out	df	%>%	rowwise	mutate	ifelse	length	res	is.na	replacement_classifier	unnest	return	unnest_result_extractor	map	replace_x	replacement_extractor	try_unnest_result_extractor	safely	try_unnest_result_classifier
 unnamed-chunk-20	get_classification_batch	safely	monkey_classify	get_extraction_batch	monkey_extract
 unnamed-chunk-21	write_batches	substr	id	type_of_problem	stop	resp	tibble	n_df_rows	nrow	df	batch_start_row	start_row	batch_end_row	n_texts_per_batch	error_log	this_batch_nested	get_classification_batch	content	unnest	this_batch	result	%>%	try_unnest_result_classifier	get_extraction_batch	try_unnest_result_extractor	message	glue	is.null	error	write_out	write_csv	bind_rows	c	out	list	return
-unnamed-chunk-22	write_extraction_batches	opinion_batches_dir	write_batches	df	extractor_id	n_texts_per_batch	dir	...	write_classification_batches	topic_batches_dir	classifier_id
+unnamed-chunk-22	write_extraction_batches	opinion_batches_dir	write_batches	df	extractor_id	n_texts_per_batch	dir	...	write_classification_batches	topic_batches_dir	topic_id
 sample_ratings_scraped	get_ratings_and_content	slack_url
 unnamed-chunk-23	gather_batches	fls	dir_ls	dir	list_o_batches	map	read_csv	out	%>%	modify_depth	as.character	bind_rows	return
 unnamed-chunk-24	reviews_with_subratings_nested	%>%	write_extraction_batches	opinion_batches_extracted	gather_batches	opinion_batches_dir	rename	probability	write_classification_batches	dat	topic_batches_dir
@@ -29,3 +29,13 @@ unnamed-chunk-26	dat	sentiment	%>%	factor	levels
 unnamed-chunk-27	dat	%>%	rowwise	mutate	switch	sentiment	ungroup
 unnamed-chunk-28	dat	cateogry	%>%	factor	levels
 unnamed-chunk-29	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
+unnamed-chunk-30	sentiment_by_category	dat_clean	%>%	group_by	category	summarise	mean	sentiment_num	arrange	mean_sentiment	kable
+unnamed-chunk-31	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	theme_bw	theme	element_text	ggtitle	labs
+unnamed-chunk-32	dat_tokens_unnested	dat_clean	%>%	unnest_tokens	word	content	anti_join	stop_words	find_nums	filter	contains_num	add_count	rename	n
+unnamed-chunk-33	sentiments	%>%	filter	word
+unnamed-chunk-34	sentiments	%>%	filter	word
+unnamed-chunk-35	dat_tokens_unnested	%>%	select	is_num	contains_num	left_join	sentiments	rename	sentiment	score
+unnamed-chunk-36	lm	dat_tokens_unnested	%>%	drop_na	sentiment_num	score_sentiment	summary	tidy
+unnamed-chunk-37	dat_tokens_unnested_first_letter	dat_tokens_unnested	%>%	rowwise	mutate	substr	word	which	letters	first_letter
+unnamed-chunk-38	ggplot	dat_tokens_unnested_first_letter	geom_smooth	aes	first_letter_num	sentiment_num	score_sentiment	labs	ggtitle	theme_bw
+unnamed-chunk-39	lm	dat_tokens_unnested_first_letter	%>%	drop_na	first_letter_num	score_sentiment	summary	tidy

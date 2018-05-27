@@ -83,7 +83,7 @@ dat_tokens_unnested <-
   add_count(word) %>% 
   rename(
     n_words_total = n
-  )
+  ) 
 
 dat_tokens_unnested <-  
   dat_tokens_unnested %>% 
@@ -100,6 +100,20 @@ dat_tokens_unnested %>%
   summarise(
     mean_sentiment_num = mean(sentiment_num)
   )
+
+# How does MLs's classifications compare to 
+two_sentiments <- 
+  dat_tokens_unnested %>% 
+  group_by(word, sentiment, sentiment_num, n_words_total) %>% 
+  summarise(
+    mean_word_score = mean(score, na.rm = TRUE)
+  ) %>% 
+  drop_na(mean_word_score) %>% 
+  arrange(desc(mean_word_score))
+
+
+ggplot(two_sentiments) +
+  geom_smooth(aes(mean_word_score, sentiment_num))
 
 
 # Do words that come at the beginning of the alphabet have higher sentiment?
