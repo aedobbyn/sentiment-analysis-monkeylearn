@@ -24,7 +24,9 @@ dat <-
     probability_unit = str_split(probability_unit_full, ":")
   ) %>% 
   unnest() %>% 
-  select(-ends_with("full")) %>% 
+  select(-ends_with("full")) 
+
+dat_w_nums <- dat %>% 
   rowwise() %>% 
   mutate(
     sentiment_num = switch(sentiment, 
@@ -35,7 +37,7 @@ dat <-
   ungroup()
 
 dat_clean <-
-  dat %>% 
+  dat_w_nums %>% 
   filter(!is.na(probability_unit) & !is.na(probability_unit) & 
            category != "None" &
            probability_sentiment > 0.55 & probability_unit > 0.55)

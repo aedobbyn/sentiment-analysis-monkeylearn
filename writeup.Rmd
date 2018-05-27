@@ -33,6 +33,7 @@ library(monkeylearn)
 library(glue)
 library(knitr)
 library(dobtools)
+library(tidytext)
 ```
 
 
@@ -42,6 +43,9 @@ reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with
 reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
 
 data_dir <- glue(here::here("data", "raw"), "/")
+
+dat <- 
+  read_csv(here("data", "derived", "dat.csv")) 
 ```
 
 
@@ -410,7 +414,7 @@ replacement_extractor <- tribble(
 ) 
 ```
 
-We'll use these inside the unnesting helpers below. They're different because of slighly different particularities to the API response.
+We'll use these inside the unnesting helpers below. They're different because of slighly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
 
 ```{r}
 unnest_result_classifier <- function(df) {
@@ -536,6 +540,162 @@ write_batches <- function(df, id, dir,
 
 
 
+
+We'll take the same tack of storing each of these results in its own file (this time a CSV) in a user-specified directory. We can wrap `write_batches` in a couple helper functions with extraction- or classification-relevant results so that we don't need to specify them every time.
+
+```{r}
+write_extraction_batches <- function(df, n_texts_per_batch = 200, 
+                                     dir = opinion_batches_dir, ...) {
+  write_batches(df, id = extractor_id, n_texts_per_batch = n_texts_per_batch,
+                dir = dir, ...)
+}
+
+write_classification_batches <- function(df, n_texts_per_batch = 200, 
+                                         dir = topic_batches_dir, ...) {
+  write_batches(df, id = classifier_id, n_texts_per_batch = n_texts_per_batch,
+                dir = dir, ...)
+}
+```
+
+
+We'll also need an easy way to gather up all of our result files up into a single dataframe. `gather_batches` will take a directory, create a vector of all the files that exist in it, `read_csv` in all of those files into one long list of dataframes, and then index into every element in that list to bind all of the dataframes together, rowwise.
+
+```{r}
+gather_batches <- function(dir, end_row) {
+  
+  fls <- fs::dir_ls(dir)
+  
+  list_o_batches <- 
+    map(fls, 
+        read_csv)
+  
+  out <- list_o_batches %>% 
+    modify_depth(2, as.character) %>%
+    bind_rows()
+  
+  return(out)
+}
+```
+
+
+Cool, now we've set up everything we need to process our data and reconsitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its multiple classifications per opinion unit.
+
+```{r, eval=FALSE}
+# Write opinion units
+reviews_with_subratings_nested %>% 
+  write_extraction_batches()
+
+# Gather opinion units
+opinion_batches_extracted <- 
+  gather_batches(dir = opinion_batches_dir) %>% 
+  rename(probability_unit = probability)
+
+# Classify opinion units
+opinion_batches_extracted %>% 
+  write_classification_batches()
+
+# Gather classifications
+dat <- 
+  gather_batches(dir = topic_batches_dir) %>% 
+  rename(probability_sentiment = probability)
+```
+
+We could even have saved the `gather_batches` steps if everything went well with our `write_{}_batches` functions. Assigning that output to a variable also allows us to inspect the `error_log` to see if all went well.
+
+
+<br>
+
+## Analysis
+
+Let's take a look at our data.
+
+```{r}
+dat %>% 
+  head() %>% 
+  kable()
+```
+
+There are only three possible sentiments for an opinion unit to have,
+
+```{r}
+dat$sentiment %>% factor() %>% levels()
+```
+
+so we can assign a number to each type of sentiment. 
+
+```{r}
+dat <- dat %>% 
+  rowwise() %>% 
+  mutate(
+    sentiment_num = switch(sentiment, 
+                           "Negative" = -1,
+                           "Neutral" = 0,
+                           "Positive" = 1)
+  ) %>% 
+  ungroup()
+```
+
+
+What about categories?
+
+```{r}
+dat$cateogry %>% factor() %>% levels()
+```
+
+We can see there are some categories labeled "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly.
+
+```{r}
+probability_cutoff <- 0.55
+
+dat_clean <-
+  dat %>% 
+  filter(!is.na(probability_unit) & !is.na(probability_unit) & 
+           category != "None" &
+           probability_sentiment > probability_cutoff & probability_unit > probability_cutoff)
+```
+
+
+
+What is the interaction between the two main things of interest here, category and sentiment?
+
+```{r}
+sentiment_by_category <- 
+  dat_clean %>% 
+  group_by(category) %>% 
+  summarise(
+    mean_sentiment = mean(sentiment_num)
+  ) %>% 
+  arrange(mean_sentiment)
+
+sentiment_by_category %>% 
+  kable()
+```
+
+
+### Down to the word level
+
+We can go even deeper into these reviews by splitting them into their individual words. The `tidytext` package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". My helper [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R) mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
+
+```{r}
+dat_tokens_unnested <- 
+  dat_clean %>% 
+  unnest_tokens(word, content) %>% 
+  anti_join(stop_words, "word") %>%
+  dobtools::find_nums() %>% 
+  filter(contains_num == FALSE) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_total = n
+  )
+
+dat_tokens_unnested <-  
+  dat_tokens_unnested %>% 
+  select(-is_num, -contains_num) %>%
+  left_join(tidytext::sentiments %>% 
+              rename(word_sentiment = sentiment,
+                     score_sentiment = score), 
+            by = "word")
+```
 
 
 

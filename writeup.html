@@ -130,10 +130,10 @@ $(document).ready(function () {
 <p>First off we want to make sure that the website we’re considering allows for scraping. We can consult the <code>robots.txt</code> file that typically lives at the top level of a website with the handy <code>robotstxt</code> package.</p>
 <pre class="r"><code>library(knitr)
 opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-               cache=TRUE, autodep = TRUE,     # Cache and auto-dependson
+               cache = TRUE, autodep = TRUE,     
                fig.width=12, fig.height=8,
                cache.extra = list())
-# Format for kables
+
 options(knitr.table.format = 'html')</code></pre>
 <pre class="r"><code>library(here)
 library(tidyverse)
@@ -237,11 +237,11 @@ try_scrape_content &lt;- possibly(scrape_content, otherwise = NA_character_)</co
 ## Groups: &lt;by row&gt;
 ## 
 ## # A tibble: 3 x 6
-##   page_num review_num rating sub_ratings         rating_perc content      
-##   &lt;chr&gt;         &lt;int&gt; &lt;chr&gt;  &lt;chr&gt;               &lt;chr&gt;       &lt;chr&gt;        
-## 1 &lt;NA&gt;              1 4/5    4       /       5 … 0.8         Pros:  Slack…
-## 2 &lt;NA&gt;              2 5/5    5       /       5 … 1           Pros:  It's …
-## 3 &lt;NA&gt;              3 5/5    5       /       5 … 1           Pros:  Slack…</code></pre>
+##   page_num review_num rating sub_ratings          rating_perc content     
+##   &lt;chr&gt;         &lt;int&gt; &lt;chr&gt;  &lt;chr&gt;                &lt;chr&gt;       &lt;chr&gt;       
+## 1 &lt;NA&gt;              1 4/5    4       /       5  … 0.8         Pros:  I lo…
+## 2 &lt;NA&gt;              2 5/5    5       /       5  … 1           &quot;Pros:  Dra…
+## 3 &lt;NA&gt;              3 5/5    5       /       5  … 1           Pros:  Very…</code></pre>
 <p>The original URL, <a href="https://www.capterra.com/p/135003/Slack/" class="uri">https://www.capterra.com/p/135003/Slack/</a>, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the “Show more reviews” button at the bottom of the page. This fetches more reviews from the server, but doesn’t change the URL at all. That means that just using <code>rvest</code> and this URL, we can only scrape the first 99 reviews.</p>
 <p>However, through a bit of investigation of the “Show more reviews” button in the Chrome inspector, I saw that inside the link’s <code>a</code> tag is a <code>data-url</code> parameter set to <code>&quot;/gdm_reviews?page=1&amp;product_id=135003&quot;</code>. Piecing that together with our original url, <a href="https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003" class="uri">https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003</a> reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after <code>page=</code>.</p>
 <p>Now we can construct the URLs for all the pages we want to iterate through. We’ll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.</p>
@@ -717,6 +717,209 @@ get_extraction_batch &lt;-
   
   return(out)
 }</code></pre>
+<p>We’ll take the same tack of storing each of these in its own file (this time a CSV) in a user-specified directory. Instead of specifying extraction-relevant parameters for writing extraction batches and classification-relevant parameters for classifying, we can wrap <code>write_batches</code> in a couple helper functions with these defaults.</p>
+<pre class="r"><code>write_extraction_batches &lt;- function(df, n_texts_per_batch = 200, 
+                                     dir = opinion_batches_dir, ...) {
+  write_batches(df, id = extractor_id, n_texts_per_batch = n_texts_per_batch,
+                dir = dir, ...)
+}
+
+write_classification_batches &lt;- function(df, n_texts_per_batch = 200, 
+                                         dir = topic_batches_dir, ...) {
+  write_batches(df, id = classifier_id, n_texts_per_batch = n_texts_per_batch,
+                dir = dir, ...)
+}</code></pre>
+<p>We’ll also need an easy way to gather up all of our result files up into a single dataframe. <code>gather_batches</code> will take a directory, create a vector of all the files that exist in there, <code>read_csv</code> in all of those files into one long list of dataframes, and then index into every element in that list to bind all of the dataframes together, rowwise.</p>
+<pre class="r"><code>gather_batches &lt;- function(dir, end_row) {
+  
+  fls &lt;- fs::dir_ls(dir)
+  
+  list_o_batches &lt;- 
+    map(fls, 
+        read_csv)
+  
+  out &lt;- list_o_batches %&gt;% 
+    modify_depth(2, as.character) %&gt;%
+    bind_rows()
+  
+  return(out)
+}</code></pre>
+<p>Cool we’re good to go now! As a quick refresher, the flow here is that we’ll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its multiple classifications per opinion unit.</p>
+<pre class="r"><code># Write opinion units
+reviews_with_subratings_nested %&gt;% 
+  write_extraction_batches()
+
+# Gather opinion units
+opinion_batches_extracted &lt;- 
+  gather_batches(dir = opinion_batches_dir) %&gt;% 
+  rename(probability_unit = probability)
+
+# Classify opinion units
+opinion_batches_extracted %&gt;% 
+  write_classification_batches()
+
+# Gather classifications
+dat &lt;- 
+  gather_batches(dir = topic_batches_dir) %&gt;% 
+  rename(probability_sentiment = probability)</code></pre>
+<p>We could even have saved the <code>gather_batches</code> steps if everything went well with our <code>write_{}_batches</code> functions. Assigning that output to a variable also allows us to inspect the <code>error_log</code> to see if all went well.</p>
+<p><br></p>
+</div>
+<div id="analysis" class="section level2">
+<h2>Analysis</h2>
+<p>Let’s take a look at our data.</p>
+<pre class="r"><code>dat %&gt;% 
+  head() %&gt;% 
+  kable()</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+content
+</th>
+<th style="text-align:left;">
+sentiment
+</th>
+<th style="text-align:right;">
+probability_sentiment
+</th>
+<th style="text-align:left;">
+category
+</th>
+<th style="text-align:right;">
+probability_unit
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Ability to create groups, project rooms and add/assign people to these groups.
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.605
+</td>
+<td style="text-align:left;">
+Groups
+</td>
+<td style="text-align:right;">
+0.874
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+It helps improve coordination among team members
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.514
+</td>
+<td style="text-align:left;">
+Ease of Use
+</td>
+<td style="text-align:right;">
+0.602
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+It helps improve coordination among team members
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.514
+</td>
+<td style="text-align:left;">
+Purpose
+</td>
+<td style="text-align:right;">
+0.535
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+I work across several workspaces and switching is super easy.
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.563
+</td>
+<td style="text-align:left;">
+Ease of Use
+</td>
+<td style="text-align:right;">
+0.715
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+I enjoy using Slack also because of how much work you can get done instead of constantly calling.
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.439
+</td>
+<td style="text-align:left;">
+None
+</td>
+<td style="text-align:right;">
+NA
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+The thing I like most about this software, is the ability to include numerous people on the communication between projects.
+</td>
+<td style="text-align:left;">
+Positive
+</td>
+<td style="text-align:right;">
+0.575
+</td>
+<td style="text-align:left;">
+General
+</td>
+<td style="text-align:right;">
+0.550
+</td>
+</tr>
+</tbody>
+</table>
+<p>There are only three possible sentiments for an opinion unit to have,</p>
+<pre class="r"><code>dat$sentiment %&gt;% factor() %&gt;% levels()</code></pre>
+<pre><code>## [1] &quot;Negative&quot; &quot;Neutral&quot;  &quot;Positive&quot;</code></pre>
+<p>so we can assign a number to each type of sentiment.</p>
+<pre class="r"><code>dat &lt;- dat %&gt;% 
+  rowwise() %&gt;% 
+  mutate(
+    sentiment_num = switch(sentiment, 
+                           &quot;Negative&quot; = -1,
+                           &quot;Neutral&quot; = 0,
+                           &quot;Positive&quot; = 1)
+  ) %&gt;% 
+  ungroup()</code></pre>
+<p>What about topics?</p>
+<pre class="r"><code>dat$cateogry %&gt;% factor() %&gt;% levels()</code></pre>
+<pre><code>## character(0)</code></pre>
+<p>We can see there are some categories labeled “None”. It’s tough to know how to interpret these, so we can filter out these rows in a new <code>dat_clean</code> dataframe. We’ll also filter out low-probability sentiments and categories – anything that the classifier is less than 55% sure is classified correctly.</p>
+<pre class="r"><code>probability_cutoff &lt;- 0.55
+
+dat_clean &lt;-
+  dat %&gt;% 
+  filter(!is.na(probability_unit) &amp; !is.na(probability_unit) &amp; 
+           category != &quot;None&quot; &amp;
+           probability_sentiment &gt; probability_cutoff &amp; probability_unit &gt; probability_cutoff)</code></pre>
 </div>
 
 
