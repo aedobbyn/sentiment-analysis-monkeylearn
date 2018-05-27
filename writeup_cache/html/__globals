@@ -27,7 +27,7 @@ unnamed-chunk-24	reviews_with_subratings_nested	%>%	write_extraction_batches	opi
 unnamed-chunk-25	dat	%>%	head	kable
 unnamed-chunk-26	dat	sentiment	%>%	factor	levels
 unnamed-chunk-27	dat	%>%	rowwise	mutate	switch	sentiment	ungroup
-unnamed-chunk-28	dat	cateogry	%>%	factor	levels
+unnamed-chunk-28	dat	category	%>%	factor	levels
 unnamed-chunk-29	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
 unnamed-chunk-30	sentiment_by_category	dat_clean	%>%	group_by	category	summarise	mean	sentiment_num	arrange	mean_sentiment	kable
 unnamed-chunk-31	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	theme_bw	theme	element_text	ggtitle	labs

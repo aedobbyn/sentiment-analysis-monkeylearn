@@ -923,8 +923,18 @@ General
   ) %&gt;% 
   ungroup()</code></pre>
 <p>What about categories?</p>
-<pre class="r"><code>dat$cateogry %&gt;% factor() %&gt;% levels()</code></pre>
-<pre><code>## character(0)</code></pre>
+<pre class="r"><code>dat$category %&gt;% factor() %&gt;% levels()</code></pre>
+<pre><code>##  [1] &quot;Attachments-Sharing&quot;             &quot;Calls&quot;                          
+##  [3] &quot;Channels&quot;                        &quot;Customer Support&quot;               
+##  [5] &quot;Desktop&quot;                         &quot;Ease of Use&quot;                    
+##  [7] &quot;Emojis&quot;                          &quot;Feedback-Recommendation&quot;        
+##  [9] &quot;General&quot;                         &quot;Groups&quot;                         
+## [11] &quot;Integrations&quot;                    &quot;Messages&quot;                       
+## [13] &quot;Mobile&quot;                          &quot;None&quot;                           
+## [15] &quot;Notifications&quot;                   &quot;Other&quot;                          
+## [17] &quot;Performance-Quality-Reliability&quot; &quot;Pricing&quot;                        
+## [19] &quot;Purpose&quot;                         &quot;Search&quot;                         
+## [21] &quot;UI-UX&quot;                           &quot;Web&quot;</code></pre>
 <p>We can see there are some categories labeled “None”. It’s tough to know how to interpret these, so we can filter out these rows in a new <code>dat_clean</code> dataframe. We’ll also filter out low-probability sentiments and categories – anything that the classifier is less than 55% sure is classified correctly.</p>
 <pre class="r"><code>probability_cutoff &lt;- 0.55
 
