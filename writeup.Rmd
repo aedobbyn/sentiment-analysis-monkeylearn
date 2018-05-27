@@ -23,7 +23,7 @@ The opinion unit approach gives us some more fine-grained control over what we'r
 
 First off we want to make sure that the website we're considering allows for scraping. We can consult the `robots.txt` file that typically lives at the top level of a website with the handy `robotstxt` package.
 
-```{r setup}
+```{r setup, echo=FALSE}
 library(knitr)
 opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
                cache = TRUE, autodep = TRUE,     
@@ -88,7 +88,6 @@ strip_whitespace_newlines <- function(t) {
 }
 ```
 
-The approach here
 
 We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
 
@@ -153,7 +152,7 @@ try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
 
 
 ```{r}
-try_scrape_content(slack_url, 123)
+try_scrape_content(slack_url, 42)
 ```
 
 
@@ -261,6 +260,15 @@ We'll write our results out to our same data directory.
 all_reviews_slack <- 
   slack_full_urls %>% get_multiple_pages()
 ```
+
+Let's check out what we've got!
+
+```{r}
+all_reviews_slack %>% 
+  head() %>% 
+  kable()
+```
+
 
 
 We could also read them all in from our directory and reconstitute the dataframe.

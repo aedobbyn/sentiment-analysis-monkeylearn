@@ -138,13 +138,6 @@ $(document).ready(function () {
 <div id="scraping-the-data" class="section level3">
 <h3>Scraping the Data</h3>
 <p>First off we want to make sure that the website we’re considering allows for scraping. We can consult the <code>robots.txt</code> file that typically lives at the top level of a website with the handy <code>robotstxt</code> package.</p>
-<pre class="r"><code>library(knitr)
-opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-               cache = TRUE, autodep = TRUE,     
-               fig.width=12, fig.height=8,
-               cache.extra = list())
-
-options(knitr.table.format = 'html')</code></pre>
 <pre class="r"><code>library(here)
 library(tidyverse)
 library(rvest)
@@ -170,7 +163,6 @@ library(tidytext)</code></pre>
   
   return(out)
 }</code></pre>
-<p>The approach here</p>
 <p>We’ll wrap the <code>scrape_rating</code> function in a trycatch so that we return an <code>NA</code> if something goes wrong rather than an error.</p>
 <pre class="r"><code>scrape_rating &lt;- function(url, i) {
   out &lt;- url %&gt;% 
@@ -190,8 +182,8 @@ try_scrape_rating &lt;- possibly(scrape_rating, otherwise = NA_character_)</code
 <p>Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with <code>str_c(collapse = &quot; &quot;)</code> for now. We’ll break those out later into a nested list column.</p>
 <pre class="r"><code>try_scrape_sub_ratings &lt;- possibly(scrape_sub_ratings, otherwise = NA_character_)
 try_scrape_content &lt;- possibly(scrape_content, otherwise = NA_character_)</code></pre>
-<pre class="r"><code>try_scrape_content(slack_url, 123)</code></pre>
-<pre><code>## [1] NA</code></pre>
+<pre class="r"><code>try_scrape_content(slack_url, 42)</code></pre>
+<pre><code>## [1] &quot;Pros:  Easy to communicate across offices and within different departments for teammates. The UI is fairly intuitive and there's lots of fun emojis to use to express communication!  Cons:  Some of the more granular features are not as intuitive, such as: starting a thread on the side, editing your message/post, the links to gifs and memes don't always show up as the image, etc.  Overall:  Daily communication&quot;</code></pre>
 <p>Now all that’s left is to string these all together in the right order inside our main scraping function, <code>get_ratings_and_content</code>. In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we’re correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.</p>
 <p>Here we jitter the amount of wait time between each iteration using a uniform distribution around <code>sleep</code>, plus or minus half a second.</p>
 <p>Throughout this post I’ll be writing data out to small files in a directory so that if our loop fails somewhere along the way for any number of reasons, we won’t lose all the data we’ve collected up to that point in the loop and can pick up again where we errored out on the first go-round. In this case, if we ask <code>get_ratings_and_content</code> to write what we’ve got so far, we create a new file in whatever <code>write_path</code> is set to.</p>
@@ -272,6 +264,135 @@ slack_full_urls &lt;- str_c(&quot;https://www.capterra.com/gdm_reviews?page=&quo
 <p>We’ll write our results out to our same data directory.</p>
 <pre class="r"><code>all_reviews_slack &lt;- 
   slack_full_urls %&gt;% get_multiple_pages()</code></pre>
+<p>Let’s check out what we’ve got!</p>
+<pre class="r"><code>all_reviews_slack %&gt;% 
+  head() %&gt;% 
+  kable()</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align:left;">
+rating
+</th>
+<th style="text-align:left;">
+sub_ratings
+</th>
+<th style="text-align:left;">
+content
+</th>
+<th style="text-align:right;">
+review_num
+</th>
+<th style="text-align:right;">
+page_num
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+5/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 5 / 5 Features &amp; Functionality 5 / 5 Customer Support 5 / 5 Value for Money
+</td>
+<td style="text-align:left;">
+Pros: Ability to create groups, project rooms and add/assign people to these groups. It helps improve coordination among team members Cons: Since it is intended to be used by professionals, most of the professionals are using outlook and they already receive reminders for tasks and meetings, additional notifications from Meekan are unnecessary Overall: Team collaboration, internal correspondence, documents sharing
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+5/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 5 / 5 Features &amp; Functionality
+</td>
+<td style="text-align:left;">
+Pros: I work across several workspaces and switching is super easy. I enjoy using Slack also because of how much work you can get done instead of constantly calling. Cons: The only issue I have is that the software limits your storage and sometimes it’s really hard to send files over as you have a limit. But for more storage you need to pay up. No problem with it though. Overall: Flawless communications.
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+4/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 5 / 5 Features &amp; Functionality 4 / 5 Customer Support 5 / 5 Value for Money
+</td>
+<td style="text-align:left;">
+Pros: The thing I like most about this software, is the ability to include numerous people on the communication between projects. Cons: I wish there was an easier way to print documents out of slack. It seems as if you have to download the pdf before being able to print.
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+3
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+5/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 5 / 5 Features &amp; Functionality 5 / 5 Customer Support 5 / 5 Value for Money
+</td>
+<td style="text-align:left;">
+Pros: Slack is a great tool for my team and I. Slack allow us to communicate effortlessly throughout the day. Cons: I don’t find too many cons with Slack. The price might seem a little steep for premium, but that’s pretty much expected.
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+4
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+5/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 5 / 5 Features &amp; Functionality 5 / 5 Customer Support 5 / 5 Value for Money
+</td>
+<td style="text-align:left;">
+Pros: It’s simple and it works. We’re able to have conversations focused on the overall team, smaller teams, and 1:1 conversations. Either by text or media. Cons: Not much. This software does everything that I need it to do. My biggest problem is training people to auto-launch Slack when they start up their computers.
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+5
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+4/5
+</td>
+<td style="text-align:left;">
+5 / 5 Ease of Use 4 / 5 Features &amp; Functionality 5 / 5 Customer Support 5 / 5 Value for Money
+</td>
+<td style="text-align:left;">
+Pros: I like the ability to communicate with people on multiple levels. It reminds me of the old style chat rooms and you can search for specific topics.
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+6
+</td>
+</tr>
+</tbody>
+</table>
 <p>We could also read them all in from our directory and reconstitute the dataframe.</p>
 <pre class="r"><code>make_files &lt;- function() {
   a &lt;- glue(data_dir, &quot;page_{1:35}&quot;)
