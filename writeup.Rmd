@@ -66,7 +66,7 @@ robotstxt::paths_allowed(
 )
 ```
 
-Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](). 
+Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](http://selectorgadget.com/). 
 
 In this case, we'll want each review's overall rating, all of its sub-ratings, as well as the text, or content, of the review. What I'm calling sub-ratings are the reviews' ratings of aspects of the service like Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give the aspects a rating out of 5.
 
@@ -425,6 +425,9 @@ First step is to extract opinion units from our review content. Each review will
 
 The `monkeylearn` R package can get us most of the way there. `monkeylearn` exposes two functions for processing data: `monkey_extract` for extraction and `monkey_classify` for classification. They accept either a vector of texts or a dataframe and a named column where the texts live and return a dataframe relating each row of input to its outputs (either nested in a `res` column or unnested if `unnest` is TRUE). If unnested, that result will include a few columns including the extraction/classification label as well as the probability (confidence) MonkeyLearn assigns its classification/extraction We also need to supply an API key either as a string or (preferably) stored as an environment variable.
 
+As of `monkeylearn` 2.0 it is possible to send batches of texts to the API and return a dataframe relating each input to its (often) multiple outputs. We don't need to handle batching ourselves; `monkeylearn` will by default send 200 texts per batch (the recommended maximum number of texts to be sent to the API at once) and move onto the next batch of 200 until we get to the end of our input. Similarly, `monkeylearn` already takes care of rate limiting, so we don't need to put in any custom sleeps between requests ourselves.
+
+
 Since we're working with custom-trained extractors and classifiers, the API response is slightly different from responses that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly. For that reason, we'll set `unnest` to FALSE inside of `monkey_extract` and `monkey_classify` and do the unnesting ourselves.
 <!-- The API returns zero-length vectors or `NULL`s for empty opinion units or when a unit wasn't classified into any categories. -->
 
@@ -473,7 +476,7 @@ try_unnest_result_classifier <- safely(unnest_result_classifier)
 ```
 
 
-We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error.
+We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error. We put this precaution in place because our `monkey_` function could throw an error for a few reasons; our request to MonkeyLearn could fail because either we or the server lose network connectivity, we receive a response we didn't expect and try to perform some operation on it that fails, or for some other unforseen reason.
 
 ```{r}
 get_classification_batch <- 
@@ -483,12 +486,18 @@ get_extraction_batch <-
   safely(monkey_extract)
 ```
 
+Let's test what happens something fails.
+
+```{r}
+12345 %>% get_classification_batch()
+```
+
 
 Now a function wrap up `monkey_classify` and `monkey_extract`. Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
 
 If any errors occur when we send text to the API, we log them in an error log that specifies where the error occurred and return that log along with the full response.
 
-As of `monkeylearn` 2.0 it is possible to send batches of texts to the API and return a dataframe relating each input to its (often) multiple outputs. That allows us to include a `n_texts_per_batch` argument which we'll normally set to 200, the recommended maximum number of texts to be sent to the API at once. `monkeylearn` already takes care of rate limiting, so we don't need to put in any custom sleeps ourselves.
+We'll take the same tack of storing each of these results in its own file (this time a CSV) in a user-specified directory.
 
 
 ```{r}
@@ -568,9 +577,7 @@ write_batches <- function(df, id, dir,
 ```
 
 
-
-
-We'll take the same tack of storing each of these results in its own file (this time a CSV) in a user-specified directory. We can wrap `write_batches` in a couple helper functions with extraction- or classification-relevant results so that we don't need to specify them every time.
+We can wrap `write_batches` in a couple helper functions with extraction- or classification-relevant results so that we don't need to specify them every time.
 
 ```{r}
 write_extraction_batches <- function(df, n_texts_per_batch = 200, 
@@ -587,7 +594,7 @@ write_classification_batches <- function(df, n_texts_per_batch = 200,
 ```
 
 
-We'll also need an easy way to gather up all of our result files up into a single dataframe. `gather_batches` will take a directory, create a vector of all the files that exist in it, `read_csv` in all of those files into one long list of dataframes, and then index into every element in that list to bind all of the dataframes together, rowwise.
+After we write all the results to their individual files, we'll want an easy way to gather up all of our result files up into a single dataframe. `gather_batches` will take a directory, create a vector of all the files that exist in it, `read_csv` in all of those files into one long list of dataframes, and then index into every element in that list to bind all of the dataframes together, rowwise.
 
 ```{r}
 gather_batches <- function(dir, end_row) {
@@ -607,7 +614,7 @@ gather_batches <- function(dir, end_row) {
 ```
 
 
-Cool, now we've set up everything we need to process our data and reconsitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its multiple classifications per opinion unit.
+Cool, now we've set up everything we need to process our data and reconsitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its sentiment rating and multiple classifications per opinion unit.
 
 ```{r, eval=FALSE}
 # Write opinion units
@@ -629,7 +636,7 @@ dat <-
   rename(probability_sentiment = probability)
 ```
 
-We could even have saved the `gather_batches` steps if everything went well with our `write_{}_batches` functions. Assigning that output to a variable also allows us to inspect the `error_log` to see if all went well.
+We could even have skipped the `gather_batches` steps if everything went well with our `write_{}_batches` functions. Assigning that output to a variable also allows us to inspect the `error_log` to see if all went well.
 
 
 <br>
@@ -694,7 +701,7 @@ sentiment_by_category <-
   summarise(
     mean_sentiment = mean(sentiment_num)
   ) %>% 
-  arrange(mean_sentiment)
+  arrange(desc(mean_sentiment))
 
 sentiment_by_category %>% 
   kable()
@@ -712,7 +719,79 @@ ggplot(sentiment_by_category) +
 ```
 
 
+Are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
+```{r}
+category_freq <- 
+  dat_clean %>% 
+  group_by(category) %>% 
+  count(sort = TRUE) %>% 
+  rename(
+    n_opinion_units = n
+  )
+
+ggplot(category_freq) +
+  geom_bar(aes(fct_reorder(category, n_opinion_units), n_opinion_units), stat = "identity") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Category Mentions") +
+  labs(x = "Category", y = "N")
+```
+
+
+Now we can weight the category sentiment by the number of times it occurs in an opinion unit.
+
+```{r}
+sentiment_by_category_weighted <- 
+  sentiment_by_category %>% 
+  left_join(category_freq, by = "category") %>% 
+  mutate(
+    weighted_sentiment = mean_sentiment*n_opinion_units
+  ) %>% 
+  arrange(desc(weighted_sentiment))
+
+sentiment_by_category_weighted %>% 
+  head() %>% 
+  kable()
+```
+
+
+```{r}
+ggplot(sentiment_by_category_weighted) +
+  geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment), stat = "identity") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Category Sentiment, Weighted") +
+  labs(x = "Category", y = "Weighted Sentiment")
+```
+
+
+
+#### Going Negative
+
+Let's focus on the places where Slack might want to improve. Pricing is more self-explanatory, so I'll focus on Performance-Quality-Reliability and Notifications.
+
+
+```{r}
+problem_categories <- 
+  dat_clean %>% 
+  filter(category %in% c("Performance-Quality-Reliability", "Notifications") &
+           sentiment == "Negative")
+```
+
+
+```{r}
+problem_categories %>% 
+  mutate(review_num = row_number()) %>% 
+  unnest_tokens(word, content) %>% 
+  filter(category == "Performance-Quality-Reliability") %>% 
+  anti_join(stop_words, by = "word") %>% 
+  count(word, sort = TRUE)
+```
+
+
+
+<br>
 
 
 ### Down to the word level
@@ -746,7 +825,7 @@ and
 sentiments %>% filter(word == "yummy")
 ```
 
-(Don't ask me why yummy is more positive than yucky is negative `emo::ji("laughing")`.) Anyway, let's join this on our dataset by "word".
+(Don't ask me why yummy is more positive than yucky is negative `r emo::ji("laughing")`.) Anyway, let's join this on our dataset by "word".
 
 
 ```{r}

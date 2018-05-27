@@ -3,40 +3,46 @@ source_in	all_reviews_slack	dat	data_dir	reviews_with_subratings_nested	reviews_
 unnamed-chunk-2	
 unnamed-chunk-3	slack_url
 unnamed-chunk-4	strip_whitespace_newlines
-unnamed-chunk-5	scrape_rating	try_scrape_rating
-unnamed-chunk-6	scrape_content	scrape_sub_ratings
-unnamed-chunk-7	try_scrape_content	try_scrape_sub_ratings
-unnamed-chunk-8	
-unnamed-chunk-9	get_ratings_and_content
-unnamed-chunk-10	pages_want	slack_full_urls
+unnamed-chunk-5	pages_want	slack_full_urls
+unnamed-chunk-6	scrape_rating	try_scrape_rating
+unnamed-chunk-7	scrape_content	scrape_sub_ratings
+unnamed-chunk-8	try_scrape_content	try_scrape_sub_ratings
+unnamed-chunk-9	
+unnamed-chunk-10	get_ratings_and_content
 unnamed-chunk-11	get_multiple_pages
 unnamed-chunk-12	
 unnamed-chunk-13	
 unnamed-chunk-14	
-unnamed-chunk-15	clean_content	split_pro_cons
+unnamed-chunk-15	clean_content
 unnamed-chunk-16	split_subratings
 unnamed-chunk-17	
 unnamed-chunk-18	
 unnamed-chunk-19	replacement_classifier	replacement_extractor
 unnamed-chunk-20	try_unnest_result_classifier	try_unnest_result_extractor	unnest_result_classifier	unnest_result_extractor
 unnamed-chunk-21	get_classification_batch	get_extraction_batch
-unnamed-chunk-22	write_batches
+unnamed-chunk-22	
 sample_ratings_scraped	
-unnamed-chunk-23	write_classification_batches	write_extraction_batches
-unnamed-chunk-24	gather_batches
-unnamed-chunk-25	
+unnamed-chunk-23	write_batches
+unnamed-chunk-24	write_classification_batches	write_extraction_batches
+unnamed-chunk-25	gather_batches
 unnamed-chunk-26	
 unnamed-chunk-27	
-unnamed-chunk-28	dat
-unnamed-chunk-29	
-unnamed-chunk-30	dat_clean	probability_cutoff
-unnamed-chunk-31	sentiment_by_category
-unnamed-chunk-32	
-unnamed-chunk-33	dat_tokens_unnested
-unnamed-chunk-34	
-unnamed-chunk-35	
-unnamed-chunk-36	dat_tokens_unnested
-unnamed-chunk-37	
-unnamed-chunk-38	dat_tokens_unnested_first_letter
-unnamed-chunk-39	
+unnamed-chunk-28	
+unnamed-chunk-29	dat
+unnamed-chunk-30	
+unnamed-chunk-31	dat_clean	probability_cutoff
+unnamed-chunk-32	sentiment_by_category
+unnamed-chunk-33	
+unnamed-chunk-34	category_freq
+unnamed-chunk-35	sentiment_by_category_weighted
+unnamed-chunk-36	
+unnamed-chunk-37	problem_categories
+unnamed-chunk-38	
+unnamed-chunk-39	dat_tokens_unnested
 unnamed-chunk-40	
+unnamed-chunk-41	
+unnamed-chunk-42	dat_tokens_unnested
+unnamed-chunk-43	
+unnamed-chunk-44	dat_tokens_unnested_first_letter
+unnamed-chunk-45	
+unnamed-chunk-46	
