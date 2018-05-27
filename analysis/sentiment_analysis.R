@@ -136,3 +136,29 @@ ggplot(dat_tokens_unnested_first_letter) +
 
 
 
+
+# - TFIDF per category for positive and negative ratings
+# - See how subratings match up with categories
+# - Find representative complaints/praise for each category
+
+
+
+dat_clean %>% 
+  filter(
+    str_detect(content, "love the")
+  ) %>% 
+  mutate(
+    # love_the = str_extract(content, "(love|Love).*")
+    love_the = str_extract(content, "(?<=love the |Love the).*$")
+  )
+
+
+
+
+
+
+
+
+
+
+

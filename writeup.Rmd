@@ -172,7 +172,7 @@ try_scrape_content(slack_full_urls[1], 42)
 
 Now all that's left is to string these all together in the right order inside a function, `get_ratings_and_content`, that grabs a vector of reviews from a single page. We can keep track of which page we're scraping by extracting it straight from the URL itself. (If we use the original Slack URL which doesn't contain a page number, the `page` value gets an `NA`.)
 
-In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we're correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.
+In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we're correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa. For fun we calculate a `rating_perc` which is the rating fraction string evaluated into its percent form (so "4/5" becomes 0.8).
 
 Here we jitter the amount of wait time between each iteration using a uniform distribution around `sleep`, plus or minus half a second.
 
