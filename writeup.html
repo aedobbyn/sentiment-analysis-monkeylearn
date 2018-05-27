@@ -121,16 +121,6 @@ $(document).ready(function () {
 
 </div>
 
-<div id="TOC">
-<ul>
-<li><a href="#scraping-the-data">Scraping the Data</a></li>
-<li><a href="#post-processing">Post-Processing</a></li>
-<li><a href="#extracting-opinions-and-classifying-topics-sentiment">Extracting Opinions and Classifying Topics &amp; Sentiment</a></li>
-<li><a href="#analysis">Analysis</a><ul>
-<li><a href="#down-to-the-word-level">Down to the word level</a></li>
-</ul></li>
-</ul>
-</div>
 
 <p>In this post I’ll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I’ll be examining reviews of Slack on the product review site Capterra.</p>
 <p>The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we’ll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text. Finally, we’ll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).</p>

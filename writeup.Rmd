@@ -3,13 +3,13 @@ title: "MonkeyLearn Sentiment Analysis"
 output:
   html_document:
     keep_md: true
-    toc: true
+    toc: false
     theme: yeti
   github_document:
-    toc: true
+    toc: false
   pdf_document:
     keep_tex: true
-    toc: true
+    toc: false
 ---
 
 In this post I'll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I'll be examining reviews of Slack on the product review site Capterra.
@@ -66,17 +66,17 @@ robotstxt::paths_allowed(
 )
 ```
 
-Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](). In this case, we'll need each review's rating and sub-ratings as well as its content.
+Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](). 
 
-We'll first save the URL where the slack reviews appear.
+In this case, we'll want each review's overall rating, all of its sub-ratings, as well as the text, or content, of the review. What I'm calling sub-ratings are the reviews' ratings of aspects of the service like Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give the aspects a rating out of 5.
+
+We'll first save the URL where the Slack reviews appear
 
 ```{r}
 slack_url <- "https://www.capterra.com/p/135003/Slack/"
 ```
 
-
-
-A quick helper for stripping out extra whitespace and newlines from our HTML soup.
+and write quick helper for stripping out extra whitespace and newlines from our HTML soup.
 
 ```{r}
 strip_whitespace_newlines <- function(t) {
@@ -89,7 +89,19 @@ strip_whitespace_newlines <- function(t) {
 ```
 
 
-We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
+The original URL, https://www.capterra.com/p/135003/Slack/, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL, we can only scrape the first 99 reviews.
+
+However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a `data-url` parameter set to `"/gdm_reviews?page=1&product_id=135003"`. Piecing that together with our original url, https://www.capterra.com/gdm_reviews?page=1&product_id=135003 reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after `page=`.
+
+Now we can construct the URLs for all the pages we want to iterate through. We'll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.
+
+```{r}
+pages_want <- 1:45
+slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
+```
+
+
+We can specify which of the 99 reviews on a page we want to scrape with from the review's number, contained in `#review-<review_number_here>` What `scrape_rating` will do is  `#review-{i} .overall-rating` We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
 
 ```{r}
 scrape_rating <- function(url, i) {
@@ -108,6 +120,9 @@ scrape_rating <- function(url, i) {
 
 try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
 ```
+
+
+Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with `str_c(collapse = " ")` for now. We'll break those out later into a nested list column.
 
 
 ```{r, echo=FALSE}
@@ -142,7 +157,6 @@ scrape_content <- function(url, i) {
 ```
 
 
-Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with `str_c(collapse = " ")` for now. We'll break those out later into a nested list column.
 
 
 ```{r}
@@ -152,11 +166,13 @@ try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
 
 
 ```{r}
-try_scrape_content(slack_url, 42)
+try_scrape_content(slack_full_urls[1], 42)
 ```
 
 
-Now all that's left is to string these all together in the right order inside our main scraping function, `get_ratings_and_content`. In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we're correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.
+Now all that's left is to string these all together in the right order inside a function, `get_ratings_and_content`, that grabs a vector of reviews from a single page. We can keep track of which page we're scraping by extracting it straight from the URL itself. (If we use the original Slack URL which doesn't contain a page number, the `page` value gets an `NA`.)
+
+In each iteration I go review by review here and grab both the rating and the review content before moving onto the next review to be absolutely sure that we're correctly matching rating and review. This approach is slower than grabbing all reviews and all ratings and matching them up afterward, but that could potentially get hairy if there are cases where we have more ratings than reviews on a page or vice versa.
 
 Here we jitter the amount of wait time between each iteration using a uniform distribution around `sleep`, plus or minus half a second.
 
@@ -217,28 +233,15 @@ get_ratings_and_content <- function(url, review_range = 1:50,
 
 Let's give it a go.
 
-```{r sample_ratings_scraped}
-get_ratings_and_content(url = slack_url, 
+```{r sample_ratings_scraped, eval=FALSE}
+get_ratings_and_content(url = slack_full_urls[10], 
                         review_range = 1:3)
 ```
 
 
-The original URL, https://www.capterra.com/p/135003/Slack/, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL, we can only scrape the first 99 reviews.
+Now that we can grab everything we want from a single page, let's wrap `get_ratings_and_content` up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we'll set our default `review_range` to that.
 
-However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a `data-url` parameter set to `"/gdm_reviews?page=1&product_id=135003"`. Piecing that together with our original url, https://www.capterra.com/gdm_reviews?page=1&product_id=135003 reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after `page=`.
-
-Now we can construct the URLs for all the pages we want to iterate through. We'll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.
-
-```{r}
-pages_want <- 1:45
-slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
-```
-
-
-Now we can wrap `get_ratings_and_content` up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we'll set our default `review_range` to that.
-
-In `get_ratings_and_content` we included the page and rating number in the review file name as its unique identifier.
-
+In `get_ratings_and_content` we included the page and rating number in the review file name as its unique identifier. `get_multiple_pages` will write our results out to our same data directory.
 
 
 ```{r}
@@ -254,14 +257,14 @@ get_multiple_pages <- function(urls, review_range = 1:99, ...) {
 ```
 
 
-We'll write our results out to our same data directory.
+Let's scrape all of the pages!
 
 ```{r eval=FALSE}
 all_reviews_slack <- 
   slack_full_urls %>% get_multiple_pages()
 ```
 
-Let's check out what we've got!
+And now we can check out what we've got:
 
 ```{r}
 all_reviews_slack %>% 
@@ -274,8 +277,8 @@ all_reviews_slack %>%
 We could also read them all in from our directory and reconstitute the dataframe.
 
 ```{r, eval=FALSE}
-make_files <- function() {
-  a <- glue(data_dir, "page_{1:35}")
+make_files <- function(page_range) {
+  a <- glue(data_dir, "page_{page_range}")
   out <- NULL
   
   for (i in 1:99) {
@@ -285,7 +288,7 @@ make_files <- function() {
   return(out)
 }
 
-fls <- make_files()
+fls <- make_files(page_range = pages_want)
 
 all_reviews_slack <- map_dfr(fls, read_rds) %>% 
   unnest(page_num) %>% 
@@ -298,9 +301,7 @@ all_reviews_slack <- map_dfr(fls, read_rds) %>%
 
 ### Post-Processing
 
-Next a few quick cleaning steps. We'll `clean_content` by removing anything with more than one space.
-
-Content consists of sub-categories like "Pros," "Cons," and "Overall". We can split those each into their own columns with a few more regexes.
+Next a few quick cleaning steps. Our review content often represents newlines by including a lot of extra whitespace. We'll `clean_content` by cleaning out multiple spaces.
 
 ```{r}
 clean_content <- function(t) {
@@ -310,35 +311,38 @@ clean_content <- function(t) {
   
   return(out)
 }
-
-
-split_pro_cons <- function(t) {
-  out <- t %>% 
-    rowwise() %>% 
-    mutate(
-      content = content %>% clean_content(),
-      pros = str_extract(content, "(?<=Pros:).*?(?=Cons:)")
-    )
-  
-  out <- out %>% 
-    rowwise() %>% 
-    mutate(
-      cons = ifelse(str_detect(content, "Overall:"), 
-                    str_extract(content, "(?<=Cons:).*?(?=Overall:)"),
-                    str_extract(content, "(?<=Cons:).*")),
-      overall = ifelse(str_detect(content, "Overall:"),
-                       str_extract(content, "(?<=Overall:).*"),
-                       NA_character_)
-    )
- 
-  return(out)
-}
 ```
 
 
-We similarly want to split sub-ratings up into their own rows. When we scraped subratings concatenated all of them into one long string. 
 
-For each long string, we'll extract all numbers and the corresponding name of the sub-rating the rating number belongs to.
+<!-- Content consists of sub-categories like "Pros," "Cons," and "Overall". We can split those each into their own columns with a few more regexes. -->
+
+<!-- ```{r} -->
+<!-- split_pro_cons <- function(t) { -->
+<!--   out <- t %>%  -->
+<!--     rowwise() %>%  -->
+<!--     mutate( -->
+<!--       content = content %>% clean_content(), -->
+<!--       pros = str_extract(content, "(?<=Pros:).*?(?=Cons:)") -->
+<!--     ) -->
+
+<!--   out <- out %>%  -->
+<!--     rowwise() %>%  -->
+<!--     mutate( -->
+<!--       cons = ifelse(str_detect(content, "Overall:"),  -->
+<!--                     str_extract(content, "(?<=Cons:).*?(?=Overall:)"), -->
+<!--                     str_extract(content, "(?<=Cons:).*")), -->
+<!--       overall = ifelse(str_detect(content, "Overall:"), -->
+<!--                        str_extract(content, "(?<=Overall:).*"), -->
+<!--                        NA_character_) -->
+<!--     ) -->
+
+<!--   return(out) -->
+<!-- } -->
+<!-- ``` -->
+
+
+Now let's clean up our subratings. When we scraped subratings we concatenated all of them into one long string because there wasn't an selector for each individual subrating. We want to split sub-ratings up into their own rows; for each long string, we'll extract all numbers and the corresponding name of the sub-rating the rating number belongs to (e.g. Value for Money 5/5) into a dataframe representing the same information in tidy format. We'll nest these in their own list column for later unnesting if we so choose. Rows without any sub-ratings get the appropriate NAs in both columns.
 
 If something goes wrong and there are more subrating numbers than names or vice versa, we'll alert ourselves of this by returning a tibble that just says "length_mismatch".
 
@@ -373,7 +377,7 @@ split_subratings <- function(inp) {
 
 
 
-Now we can take our raw reviews and get each sub-rating into a nested dataframe inside a new `sub_ratings_split` column, which can then be unnested
+Now we can take our raw reviews and get each sub-rating into a nested dataframe inside a new `sub_ratings_split` column, which can then be unnested.
 
 ```{r, eval=FALSE}
 reviews_with_subratings <- all_reviews_slack %>% 
@@ -411,14 +415,18 @@ reviews_with_subratings_unnested %>%
 
 <br>
 
-Now onto the data processing! This is where MonkeyLearn's custom modules come in. They make it simple to send data their way for extraction or classification without having to build, train, test, and iterate on a model ourselves.
+Now onto the data processing! This is where MonkeyLearn's custom modules come in. They make it simple to send data their way for extraction or classification without having to build, train, test, and iterate on a model ourselves. The MonkeyLearn modules, custom-trained on our scraped data, even provide metrics like the precision, recall, and accuracy of each particular module.
 
+<br>
 
 ## Extracting Opinions and Classifying Topics & Sentiment
 
-First step is to extract opinion units from our review content. Each review will have one or many opinion units. What we want to end up with is one row per opinion unit, meaning multiple rows per original content line. Next, we send each opinion unit to the API to be classified into one or multiple topics and assigned a sentiment (Positive, Negative, or Neutral). For topic classifications, we'll only worry about the "leaf" topics for these purposes.[^1]
+First step is to extract opinion units from our review content. Each review will have one or many opinion units. What we want to end up with is one row per opinion unit, meaning multiple rows per original content line. Next, we send each opinion unit to the API to be assigned a a single sentiment (Positive, Negative, or Neutral) and classified into one or multiple topics. For topic classifications, we'll only worry about the "leaf" topics for these purposes.[^1]
 
-The `monkeylearn` R package can get us most of the way there. Since we're working with custom-trained extractors and classifiers, the API response is slightly different from ones that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly.
+The `monkeylearn` R package can get us most of the way there. `monkeylearn` exposes two functions for processing data: `monkey_extract` for extraction and `monkey_classify` for classification. They accept either a vector of texts or a dataframe and a named column where the texts live and return a dataframe relating each row of input to its outputs (either nested in a `res` column or unnested if `unnest` is TRUE). If unnested, that result will include a few columns including the extraction/classification label as well as the probability (confidence) MonkeyLearn assigns its classification/extraction We also need to supply an API key either as a string or (preferably) stored as an environment variable.
+
+Since we're working with custom-trained extractors and classifiers, the API response is slightly different from responses that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly. For that reason, we'll set `unnest` to FALSE inside of `monkey_extract` and `monkey_classify` and do the unnesting ourselves.
+<!-- The API returns zero-length vectors or `NULL`s for empty opinion units or when a unit wasn't classified into any categories. -->
 
 If we get a `NULL` response from our classifier we'll replace it with `replacement_classifier` and likewise for `replacement_extractor`.
 
@@ -435,7 +443,7 @@ replacement_extractor <- tribble(
 ) 
 ```
 
-We'll use these inside the unnesting helpers below. They're different because of slighly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
+We'll use these replacements inside the unnesting helpers below. They're different because of slighly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
 
 ```{r}
 unnest_result_classifier <- function(df) {
@@ -476,7 +484,7 @@ get_extraction_batch <-
 ```
 
 
-Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
+Now a function wrap up `monkey_classify` and `monkey_extract`. Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
 
 If any errors occur when we send text to the API, we log them in an error log that specifies where the error occurred and return that log along with the full response.
 
