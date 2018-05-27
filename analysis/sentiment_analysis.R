@@ -142,15 +142,62 @@ ggplot(dat_tokens_unnested_first_letter) +
 # - Find representative complaints/praise for each category
 
 
+replace_y <- function (x, replacement = NA_character_) {
+  if (is.null(x) || length(x) == 0 || length(x[[1]]) == 0) {
+    replacement
+  }
+  else {
+    x
+  }
+}
 
-dat_clean %>% 
+category_reg <- 
+  str_c(dat_clean$category %>% tolower() %>% unique(), collapse = "|")
+
+
+loves <- 
+  dat_clean %>% 
   filter(
     str_detect(content, "love the")
   ) %>% 
+  distinct(content) %>% 
+  rowwise() %>% 
   mutate(
-    # love_the = str_extract(content, "(love|Love).*")
-    love_the = str_extract(content, "(?<=love the |Love the).*$")
-  )
+    love_the = str_extract(content, "(?<=love the |Love the).*$"),
+    love_what = str_extract_all(love_the, category_reg) %>% replace_y() # %>% str_c(collapse = "; ") 
+  ) %>% 
+  unnest()
+
+
+blank_the <- function(df = dat_clean, word = "love") {
+  word_capped <- 
+    dobtools::simple_cap(word)
+  
+  out <- 
+    df %>% 
+    filter(
+      str_detect(content, glue("{word} the"))
+    ) %>% 
+    distinct(content) %>% 
+    rowwise() %>% 
+    mutate(
+      blank_the = str_extract(content, glue("(?<={word} the |{word_capped} the).*$")),
+      blank_what = str_extract_all(blank_the, category_reg) %>% replace_y() # %>% str_c(collapse = "; ") 
+    ) %>% 
+    unnest()
+  
+  return(out)
+}
+
+
+blank_the(word = "love")
+blank_the(word = "dislike")
+blank_the(word = "hate")
+blank_the(word = "use")
+blank_the(word = "don't use")
+
+
+
 
 
 
