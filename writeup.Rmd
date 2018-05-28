@@ -489,8 +489,13 @@ get_extraction_batch <-
 Let's test what happens something fails.
 
 ```{r}
-12345 %>% get_classification_batch()
+safe_return <- 
+  NULL %>% get_classification_batch()
+
+safe_return
 ```
+
+The function executes successfully and we get a record of the error message.
 
 
 Now a function wrap up `monkey_classify` and `monkey_extract`. Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
@@ -791,29 +796,6 @@ ggplot(sentiment_by_category_weighted) +
 
 
 
-#### Going Negative
-
-Let's focus on the places where Slack might want to improve. Pricing is more self-explanatory, so I'll focus on Performance-Quality-Reliability and Notifications.
-
-
-```{r}
-problem_categories <- 
-  dat_clean %>% 
-  filter(category %in% c("Performance-Quality-Reliability", "Notifications") &
-           sentiment == "Negative")
-```
-
-
-```{r}
-problem_categories %>% 
-  mutate(review_num = row_number()) %>% 
-  unnest_tokens(word, content) %>% 
-  filter(category == "Performance-Quality-Reliability") %>% 
-  anti_join(stop_words, by = "word") %>% 
-  count(word, sort = TRUE)
-```
-
-
 
 <br>
 
@@ -891,14 +873,18 @@ dat_tokens_unnested_first_letter <-
 
 ```
 
-And then plot the word's sentiment as scored on the `AFINN` scale.
+And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our dataset.
 
 ```{r, echo=FALSE}
 ggplot(dat_tokens_unnested_first_letter) +
   # geom_smooth(aes(first_letter_num, sentiment_num),
   #             colour = "blue") +
   geom_smooth(aes(first_letter_num, score_sentiment),
-              colour = "red") +
+              colour = "blue") +
+  # geom_smooth(aes(first_letter_num, score_sentiment),
+  #             colour = "dark green", method = "lm",
+  #             linetype = "dashed", se = FALSE) +
+  geom_hline(data = dat_tokens_unnested_first_letter, yintercept = mean(dat_tokens_unnested_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
   labs(x = "First letter", y = "Sentiment") +
   ggtitle("Relationship between a word's first letter on its sentiment") +
   theme_bw()
@@ -930,7 +916,17 @@ replace_y <- function (x, replacement = NA_character_) {
 }
 ```
 
-We might be interested in phrases that follow specific words like "use" or "don't use". We might also want to pull out a category or categories if they exist in the phrase. We can make something reusable like:
+We might be interested in phrases that follow specific words like "use" or "don't use". We might also want to pull out a category or categories if they exist in the phrase. 
+
+We'll make a regex for all of the categories MonkeyLearn has identified:
+
+```{r}
+category_reg <- 
+  str_c(dat_clean$category %>% tolower() %>% unique(), collapse = "|")
+```
+
+
+We can make something reusable like:
 
 ```{r}
 search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE) {
@@ -963,15 +959,66 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
 We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to.
 
 ```{r}
-search_for(word = "love", append_the = TRUE)
+search_for(word = "love", append_the = TRUE) %>% 
+  dobtools::replace_na_df() %>% 
+  head() %>% 
+  kable()
 ```
 
-By default we won't append "the"
+By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
 
 ```{r}
 search_for(word = "use") %>% 
-  drop_na(phrase_categories)
+  drop_na(phrase_categories) %>% 
+  dobtools::replace_na_df() %>% 
+  head() %>% 
+  kable()
 ```
+
+
+
+
+#### Going Negative
+
+Let's focus on the places where Slack might want to improve. Pricing is more self-explanatory, so I'll focus on Performance-Quality-Reliability and Notifications.
+
+
+```{r}
+problem_categories <- 
+  dat_clean %>% 
+  filter(category %in% c("Performance-Quality-Reliability", "Notifications") &
+           sentiment == "Negative")
+```
+
+
+```{r}
+pqr_complaints <- 
+  problem_categories %>% 
+  mutate(review_num = row_number()) %>% 
+  unnest_tokens(word, content) %>% 
+  filter(category == "Performance-Quality-Reliability") %>% 
+  anti_join(stop_words, by = "word") %>% 
+  count(word, sort = TRUE)
+```
+
+Is the desktop app or mobile app mentioned more in P-Q-R compaints?
+
+```{r}
+pqr_complaints %>% 
+  filter(word %in% c("desktop", "mobile"))
+```
+
+
+How does that compare to the base rate of the mentions of desktop and mobile?
+
+```{r}
+dat_tokens_unnested %>% 
+  filter(word %in% c("desktop", "mobile")) %>% 
+  group_by(word) %>% 
+  count()
+```
+
+So interestingly, even though mobile is mentioned more often than desktop in reviews, most of the P-Q-R complaints seem to be about the desktop app. 
 
 
 [^1]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
