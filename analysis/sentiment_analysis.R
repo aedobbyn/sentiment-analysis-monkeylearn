@@ -64,9 +64,21 @@ ggplot(sentiment_by_category %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
+# Filled bars
+ggplot(dat_clean) +
+  geom_bar(aes(category, fill = sentiment), position = "fill")
+
+
+ggplot(dat_clean) +
+  geom_bar(aes(sentiment, fill = sentiment), position = "dodge")
 
 
 
+# How have reviews changed over time?
+ggplot(dat_clean %>% 
+         distinct(content, .keep_all = TRUE) %>% 
+         mutate(row_num = row_number())) +
+  geom_smooth(aes(row_num, sentiment_num))
 
 
 
@@ -169,19 +181,25 @@ loves <-
   unnest()
 
 
-blank_the <- function(df = dat_clean, word = "love") {
+search_for <- function(df = dat_clean, col = content, word = "love", prepend_the = FALSE) {
   word_capped <- 
     dobtools::simple_cap(word)
+  
+  q_col = enquo(col)
+  
+  look_for <- ifelse(prepend_the == TRUE,
+                     glue("{word} the |{word_capped} the"),
+                     glue("{word} |{word_capped} "))
   
   out <- 
     df %>% 
     filter(
-      str_detect(content, glue("{word} the"))
+      str_detect(!!q_col, look_for)
     ) %>% 
-    distinct(content) %>% 
+    distinct(!!q_col) %>% 
     rowwise() %>% 
     mutate(
-      blank_the = str_extract(content, glue("(?<={word} the |{word_capped} the).*$")),
+      blank_the = str_extract(!!q_col, glue("(?<={word} the |{word_capped} the).*$")),
       blank_what = str_extract_all(blank_the, category_reg) %>% replace_y() # %>% str_c(collapse = "; ") 
     ) %>% 
     unnest()
@@ -190,11 +208,11 @@ blank_the <- function(df = dat_clean, word = "love") {
 }
 
 
-blank_the(word = "love")
-blank_the(word = "dislike")
-blank_the(word = "hate")
-blank_the(word = "use")
-blank_the(word = "don't use")
+search_for(word = "love", prepend_the = TRUE)
+search_for(word = "dislike")
+search_for(word = "hate")
+search_for(word = "use")
+search_for(word = "never use")
 
 
 

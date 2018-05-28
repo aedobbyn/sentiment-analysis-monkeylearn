@@ -91,7 +91,7 @@ strip_whitespace_newlines <- function(t) {
 
 The original URL, https://www.capterra.com/p/135003/Slack/, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL, we can only scrape the first 99 reviews.
 
-However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a `data-url` parameter set to `"/gdm_reviews?page=1&product_id=135003"`. Piecing that together with our original url, https://www.capterra.com/gdm_reviews?page=1&product_id=135003 reveals the same content our original URL with slightly different styling. What this second URL offers, though, is a way to select a certain page by changing the number after `page=`.
+However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a `data-url` parameter set to `"/gdm_reviews?page=1&product_id=135003"`. Piecing that together with our original url, https://www.capterra.com/gdm_reviews?page=1&product_id=135003 reveals the same content our original URL without the styling. What this second URL offers, though, is a way to select a certain page by changing the number after `page=`.
 
 Now we can construct the URLs for all the pages we want to iterate through. We'll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.
 
@@ -691,6 +691,30 @@ dat_clean <-
 ```
 
 
+Now let's get the lay of the land by seeing what the breakdown of sentiments is overall.
+
+```{r}
+sentiment_breakdown <- 
+  dat_clean %>% 
+  group_by(sentiment) %>% 
+  count() %>% 
+  rename(by_sentiment = n) %>% 
+  ungroup() %>% 
+  mutate(total = sum(by_sentiment),
+         sentiment_prop = by_sentiment/total)
+
+ggplot(sentiment_breakdown) +
+  geom_bar(aes(sentiment, sentiment_prop, fill = sentiment), position = "dodge", stat = "identity") + 
+  geom_text(aes(sentiment, sentiment_prop + 0.03, label = round(sentiment_prop*100, digits = 2)),
+            fontface = "italic", size = 3) +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("Sentiment Breakdown, Overall") +
+  labs(x = "Sentiment", y = "Proportion", fill = "Sentiment") +
+  theme_bw()
+```
+
+Very few Neutrals.
+
 
 What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each cateogry.
 
@@ -867,10 +891,12 @@ dat_tokens_unnested_first_letter <-
 
 ```
 
+And then plot the word's sentiment as scored on the `AFINN` scale.
+
 ```{r, echo=FALSE}
 ggplot(dat_tokens_unnested_first_letter) +
-  geom_smooth(aes(first_letter_num, sentiment_num),
-              colour = "blue") +
+  # geom_smooth(aes(first_letter_num, sentiment_num),
+  #             colour = "blue") +
   geom_smooth(aes(first_letter_num, score_sentiment),
               colour = "red") +
   labs(x = "First letter", y = "Sentiment") +
@@ -889,6 +915,63 @@ lm(data = dat_tokens_unnested_first_letter %>% drop_na(first_letter_num, score_s
 ```
 
 Not significant, as we might expect.
+
+
+<br>
+
+```{r, echo=FALSE}
+replace_y <- function (x, replacement = NA_character_) {
+  if (is.null(x) || length(x) == 0 || length(x[[1]]) == 0 || is.null(x[[1]])) {
+    replacement
+  }
+  else {
+    x
+  }
+}
+```
+
+We might be interested in phrases that follow specific words like "use" or "don't use". We might also want to pull out a category or categories if they exist in the phrase. We can make something reusable like:
+
+```{r}
+search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE) {
+  word_capped <- 
+    dobtools::simple_cap(word)
+  
+  q_col = enquo(col)
+  
+  look_for <- ifelse(append_the == TRUE,
+                     glue("{word} the |{word_capped} the"),
+                     glue("{word} |{word_capped} "))
+  
+  out <- 
+    df %>% 
+    filter(
+      str_detect(!!q_col, look_for)
+    ) %>% 
+    distinct(!!q_col) %>% 
+    rowwise() %>% 
+    mutate(
+      phrase = str_extract(!!q_col, glue("(?<={look_for}).*$")),
+      phrase_categories = str_extract_all(phrase, category_reg) %>% replace_y() %>% str_c(collapse = ", ")
+    ) 
+  
+  return(out)
+}
+```
+
+
+We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to.
+
+```{r}
+search_for(word = "love", append_the = TRUE)
+```
+
+By default we won't append "the"
+
+```{r}
+search_for(word = "use") %>% 
+  drop_na(phrase_categories)
+```
 
 
 [^1]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
