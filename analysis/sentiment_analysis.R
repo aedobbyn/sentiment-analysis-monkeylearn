@@ -6,12 +6,16 @@ library(glue)
 library(tidytext)
 
 dat_raw <- 
-  read_csv(here("data", "derived", "All_Opinion_Units_Sentiment_Topic.csv")) 
+  # read_csv(here("data", "derived", "All_Opinion_Units_Sentiment_Topic.csv")) 
+  read_csv(here("data", "derived", "full_opinion_units_2.csv"))
 
 dat_unsplit <- 
   dat_raw %>% 
-  rename(content = Text,
-         sentiment = Sentiment,
+  mutate(
+    sub_ratings_split = split_subratings(sub_ratings) %>% list()
+  ) %>% 
+  select(-sub_ratings) %>% 
+  rename(sentiment = Sentiment,
          probability_sentiment = Probability,
          categories_full = `Categories (Full-text)`,
          probability_unit_full = `Probabilities (Full-text)`

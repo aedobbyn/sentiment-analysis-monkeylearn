@@ -122,12 +122,15 @@ $(document).ready(function () {
 </div>
 
 
-<p>In this post I’ll detail how to use MonkeyLearn to conduct a seamless sentiment analysis of product reviews. I’ll be examining reviews of Slack on the product review site Capterra.</p>
-<p>The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we’ll feed each of the reviews to MonkeyLearn in order extract discrete opinion units from the text. Finally, we’ll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).</p>
+<p>MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I’ll give an example of how you might use the <code>monkeylearn</code> R package to conduct a seamless sentiment analysis of consumer product reviews. I’ll be examining reviews of the popular colaboration tool <a href="https://slack.com/">Slack</a> on the product review site <a href="https://www.capterra.com/">Capterra</a>.</p>
+<p>What do people who use Slack think of it? What aspects of the product are the most beloved and despised (at least among people who take the time to write a review of the product)? These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We’ll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.</p>
+<p>Specifically, MonkeyLearn will handle extracting reviews into distinct opinion units and attaching topics and sentiments to those opinion units. Most of what we have to do is shunt data back and forth between our environment and MonkeyLearn’s custom machine learning modules.</p>
+<p>The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we’ll feed each of the reviews to MonkeyLearn in order to extract discrete opinion units from the text. Finally, we’ll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).</p>
 <p>The opinion unit approach gives us some more fine-grained control over what we’re assigning sentiment to, since there can be multiple sentimetns in the same sentence. For instance, “I love Spring time but I hate the allergies that go along with it” would hopefully be broken into the units “I love Spring time” and “but I hate the allergies that go along with it” and assigned the sentiments Positive and Negative, respectively.</p>
 <div id="scraping-the-data" class="section level3">
 <h3>Scraping the Data</h3>
-<p>First off we want to make sure that the website we’re considering allows for scraping. We can consult the <code>robots.txt</code> file that typically lives at the top level of a website with the handy <code>robotstxt</code> package.</p>
+<p>First step is to collect all of the reviews of Slack that people have left on Capterra.</p>
+<p>We’ll want to make sure that the website we’re considering allows for scraping. We can consult the <code>robots.txt</code> file that typically lives at the top level of a website with the handy <code>robotstxt</code> package.</p>
 <pre class="r"><code>library(here)
 library(tidyverse)
 library(rvest)
@@ -142,9 +145,9 @@ library(tidytext)</code></pre>
   bot = &quot;*&quot;
 )</code></pre>
 <pre><code>## [1] TRUE</code></pre>
-<p>Now that we know we’re good to go, we can start scraping Capterra. I’ll use the popular package <code>rvest</code> to do the scraping. <code>rvest</code> allows us to ask for content by a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the <a href="http://selectorgadget.com/">SelectorGadget Chrome extension</a>.</p>
-<p>In this case, we’ll want each review’s overall rating, all of its sub-ratings, as well as the text, or content, of the review. What I’m calling sub-ratings are the reviews’ ratings of aspects of the service like Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give the aspects a rating out of 5.</p>
-<p>We’ll first save the URL where the Slack reviews appear</p>
+<p>Now that we know we’re good to go, we can start scraping Capterra. I’ll use the popular package <code>rvest</code> to do the scraping. <code>rvest</code> allows us to ask for content that lives inside a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the <a href="http://selectorgadget.com/">SelectorGadget Chrome extension</a>.</p>
+<p>In this case, we’ll want each review’s overall rating, all of its sub-ratings, as well as the text, or content, of the review. What I’m calling sub-ratings are the reviews’ ratings of certain aspects of the service like Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give these aspects a rating from 1 to 5 out of 5.</p>
+<p>We’ll first store the URL where the Slack reviews appear,</p>
 <pre class="r"><code>slack_url &lt;- &quot;https://www.capterra.com/p/135003/Slack/&quot;</code></pre>
 <p>and write quick helper for stripping out extra whitespace and newlines from our HTML soup.</p>
 <pre class="r"><code>strip_whitespace_newlines &lt;- function(t) {
@@ -154,9 +157,9 @@ library(tidytext)</code></pre>
   
   return(out)
 }</code></pre>
-<p>The original URL, <a href="https://www.capterra.com/p/135003/Slack/" class="uri">https://www.capterra.com/p/135003/Slack/</a>, loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the “Show more reviews” button at the bottom of the page. This fetches more reviews from the server, but doesn’t change the URL at all. That means that just using <code>rvest</code> and this URL, we can only scrape the first 99 reviews.</p>
-<p>However, through a bit of investigation of the “Show more reviews” button in the Chrome inspector, I saw that inside the link’s <code>a</code> tag is a <code>data-url</code> parameter set to <code>&quot;/gdm_reviews?page=1&amp;product_id=135003&quot;</code>. Piecing that together with our original url, <a href="https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003" class="uri">https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003</a> reveals the same content our original URL without the styling. What this second URL offers, though, is a way to select a certain page by changing the number after <code>page=</code>.</p>
-<p>Now we can construct the URLs for all the pages we want to iterate through. We’ll take the first 45 and assume that there are 99 reviews on each page putting us at nearly the full content of our 4500 or so reviews.</p>
+<p>Our <code>slack_url</code> loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the “Show more reviews” button at the bottom of the page. This fetches more reviews from the server, but doesn’t change the URL at all. That means that just using <code>rvest</code> and this URL without involving <a href="https://github.com/ropensci/RSelenium"><code>RSelenium</code></a> or something more fancy, we can only scrape the first 99 reviews.</p>
+<p>However, through a bit of investigation of the “Show more reviews” button in the Chrome inspector, I saw that inside the link’s <code>a</code> tag is a <a href="https://en.wikipedia.org/wiki/Data_URI_scheme"><code>data-url</code></a> parameter set to <code>&quot;/gdm_reviews?page=1&amp;product_id=135003&quot;</code>. We can mash that together with our original URL to get <a href="https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003" class="uri">https://www.capterra.com/gdm_reviews?page=1&amp;product_id=135003</a> which reveals the same content our original URL (sans the styling). The <code>page=1</code> query parameter in this URL, though, is key; it gives us a way to select a certain page by changing the number after <code>page=</code>.</p>
+<p>Now we can construct the URLs for all the pages we want to iterate through. From a quick perusal of a few other pages, it looks like each one contains 99 reviews. We’ll create URLs for the first 45, pages putting us at nearly the full content of our 4500 or so reviews.</p>
 <pre class="r"><code>pages_want &lt;- 1:45
 slack_full_urls &lt;- str_c(&quot;https://www.capterra.com/gdm_reviews?page=&quot;, pages_want, &quot;&amp;product_id=135003&quot;, sep = &quot;&quot;)</code></pre>
 <p>We can specify which of the 99 reviews on a page we want to scrape with from the review’s number, contained in <code>#review-&lt;review_number_here&gt;</code> What <code>scrape_rating</code> will do is <code>#review-{i} .overall-rating</code> We’ll wrap the <code>scrape_rating</code> function in a trycatch so that we return an <code>NA</code> if something goes wrong rather than an error.</p>
@@ -233,6 +236,15 @@ try_scrape_content &lt;- possibly(scrape_content, otherwise = NA_character_)</co
 <p>Let’s give it a go.</p>
 <pre class="r"><code>get_ratings_and_content(url = slack_full_urls[10], 
                         review_range = 1:3)</code></pre>
+<pre><code>## Source: local data frame [3 x 6]
+## Groups: &lt;by row&gt;
+## 
+## # A tibble: 3 x 6
+##   page_num  review_num rating sub_ratings          rating_perc content    
+##   &lt;list&gt;         &lt;int&gt; &lt;chr&gt;  &lt;chr&gt;                &lt;chr&gt;       &lt;chr&gt;      
+## 1 &lt;chr [1]&gt;          1 5/5    5       /       5  … 1           Pros:  God…
+## 2 &lt;chr [1]&gt;          2 5/5    4       /       5  … 1           Pros:  I a…
+## 3 &lt;chr [1]&gt;          3 5/5    4       /       5  … 1           Pros:  lov…</code></pre>
 <p>Now that we can grab everything we want from a single page, let’s wrap <code>get_ratings_and_content</code> up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we’ll set our default <code>review_range</code> to that.</p>
 <p>In <code>get_ratings_and_content</code> we included the page and rating number in the review file name as its unique identifier. <code>get_multiple_pages</code> will write our results out to our same data directory.</p>
 <pre class="r"><code>get_multiple_pages &lt;- function(urls, review_range = 1:99, ...) {
@@ -1724,6 +1736,11 @@ c(“channels”, “integrations”)
 <p>So interestingly, even though mobile is mentioned more often than desktop in reviews, most of the P-Q-R complaints seem to be about the desktop app.</p>
 </div>
 </div>
+</div>
+<div id="wrap-up" class="section level2">
+<h2>Wrap-Up</h2>
+<p>Here we’ve built a relatively straightfoward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API.</p>
+<p>Thanks and happy coding!</p>
 </div>
 <div class="footnotes">
 <hr />
