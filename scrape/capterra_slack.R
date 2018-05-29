@@ -118,7 +118,7 @@ get_ratings_and_content <- function(url, review_range = 1:50,
   
   out <- tibble()
   page <- ifelse(str_detect(url, "page"), 
-                 qdapRegex::ex_between(url, "page=", "&"),
+                 qdapRegex::ex_between(url, "page=", "&")[[1]],
                  NA_character_)
   
   for (i in review_range) {
