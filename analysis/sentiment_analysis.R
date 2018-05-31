@@ -11,24 +11,30 @@ dat_raw <-
 
 dat_unsplit <- 
   dat_raw %>% 
+  rowwise() %>% 
   mutate(
-    sub_ratings_split = split_subratings(sub_ratings) %>% list()
+    sub_ratings_split = split_subratings(sub_ratings) %>% list(),
+    rating_perc = ifelse(is.na(ratings), NA_character_, 
+                         parse(text = ratings) %>% eval())
   ) %>% 
   select(-sub_ratings) %>% 
-  rename(sentiment = Sentiment,
-         probability_sentiment = Probability,
-         categories_full = `Categories (Full-text)`,
-         probability_unit_full = `Probabilities (Full-text)`
+  rename(rating = ratings, 
+         sentiment = Sentiment,
+         probability_sentiment = `Sentiment Probability`,
+         categories_full = `Topic Classification`,
+         probability_unit_full = `Topic Probability`
          )
+
 
 dat <- 
   dat_unsplit %>% 
+  # unnest() %>% 
   mutate(
     category = str_split(categories_full, ":"),
     probability_unit = str_split(probability_unit_full, ":")
   ) %>% 
-  unnest() %>% 
-  select(-ends_with("full")) 
+  select(-ends_with("full")) %>%
+  unnest(category, probability_unit, .preserve = sub_ratings_split)
 
 dat_w_nums <- dat %>% 
   rowwise() %>% 
@@ -39,6 +45,10 @@ dat_w_nums <- dat %>%
                            "Positive" = 1)
   ) %>% 
   ungroup()
+
+
+# write_rds(dat_w_nums, here("data", "derived", "dat.rds"))
+
 
 dat_clean <-
   dat_w_nums %>% 
@@ -92,6 +102,11 @@ ggplot(dat_clean %>%
 
 dat_tokens_unnested <- 
   dat_clean %>% 
+  rowwise() %>% 
+  mutate(
+    doc_uuid = str_c("r", review_num, "p", page_num, sep = "_")
+    # doc_hash = digest::digest(str_c(review_num, page_num, collapse = "_"))
+  ) %>% 
   unnest_tokens(word, content) %>% 
   anti_join(stop_words, "word") %>%
   dobtools::find_nums() %>% 

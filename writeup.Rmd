@@ -59,8 +59,11 @@ reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_s
 
 data_dir <- glue(here::here("data", "raw"), "/")
 
+# dat <- 
+#   read_csv(here("data", "derived", "dat.csv")) 
+
 dat <- 
-  read_csv(here("data", "derived", "dat.csv")) 
+  read_rds(here("data", "derived", "dat.rds")) 
 ```
 
 
@@ -362,27 +365,27 @@ If something goes wrong and there are more subrating numbers than names or vice 
 split_subratings <- function(inp) {
   
   if (is.na(inp)) {
-    out <- tibble(names = NA_character_, nums = NA_character_)
+    out <- tibble(subrating_title = NA_character_, subrating_rating = NA_character_)
     return(out)
   } 
   
-  nums <- inp %>% 
+  subrating_rating <- inp %>% 
     str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>% 
     map(str_replace_all, "[ ]+", "") %>% 
     as_vector()
-  nums <- nums[nums != ""]
+  subrating_rating <- subrating_rating[subrating_rating != ""]
   
-  names <- inp %>% 
+  subrating_title <- inp %>% 
     str_split("([0-9\\. ]+\\/[0-9 ]+)") %>% 
     as_vector()
-  names <- names[names != ""]
+  subrating_title <- subrating_title[subrating_title != ""]
   
-  if (length(nums) != length(names)) {
-    out <- tibble(names = "length_mismatch", nums = "length_mismatch")
+  if (length(subrating_rating) != length(subrating_title)) {
+    out <- tibble(subrating_title = "length_mismatch", subrating_rating = "length_mismatch")
     return(out)
   }
   
-  out <- tibble(names = names, nums = nums)
+  out <- tibble(subrating_title = subrating_title, subrating_rating = subrating_rating)
   return(out)
 }
 ```
@@ -808,7 +811,7 @@ sentiment_by_category_weighted %>%
 ```
 
 
-```{r}
+```{r, echo=FALSE}
 ggplot(sentiment_by_category_weighted) +
   geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment), stat = "identity") +
   theme_bw() +
@@ -838,7 +841,6 @@ dat_tokens_unnested <-
   rename(
     n_words_total = n
   )
-
 ```
 
 
