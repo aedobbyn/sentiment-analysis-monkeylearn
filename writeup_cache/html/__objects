@@ -30,7 +30,7 @@ unnamed-chunk-27	gather_batches
 unnamed-chunk-28	
 unnamed-chunk-29	
 unnamed-chunk-30	
-unnamed-chunk-31	dat
+unnamed-chunk-31	dat	uuids
 unnamed-chunk-32	
 unnamed-chunk-33	dat_clean	probability_cutoff
 unnamed-chunk-34	sentiment_breakdown
@@ -43,16 +43,22 @@ unnamed-chunk-40	dat_tokens_unnested
 unnamed-chunk-41	
 unnamed-chunk-42	
 unnamed-chunk-43	dat_tokens_unnested
-unnamed-chunk-44	
-unnamed-chunk-45	dat_tokens_unnested_first_letter
-unnamed-chunk-46	
-unnamed-chunk-47	
-unnamed-chunk-48	replace_y
-unnamed-chunk-49	category_reg
-unnamed-chunk-50	search_for
-unnamed-chunk-51	
-unnamed-chunk-52	
-unnamed-chunk-53	problem_categories
-unnamed-chunk-54	pqr_complaints
-unnamed-chunk-55	
-unnamed-chunk-56	
+unnamed-chunk-44	dat_tokens_unnested_unnested
+unnamed-chunk-45	
+unnamed-chunk-46	assign_number	try_assign_number
+unnamed-chunk-47	dat_tokens_unnested_first_letter
+unnamed-chunk-48	
+unnamed-chunk-49	
+unnamed-chunk-50	replace_y
+unnamed-chunk-51	category_reg
+unnamed-chunk-52	search_for
+unnamed-chunk-53	
+unnamed-chunk-54	
+unnamed-chunk-55	dat_tokens_unnested_counts
+unnamed-chunk-56	dat_tokens_unnested_tfidf
+numerise_sentiment	dat
+unnamed-chunk-57	
+unnamed-chunk-58	problem_categories
+unnamed-chunk-59	pqr_complaints
+unnamed-chunk-60	
+unnamed-chunk-61	

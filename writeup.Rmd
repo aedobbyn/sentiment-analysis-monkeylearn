@@ -691,7 +691,10 @@ so we can assign a number to each type of sentiment.
 
 We'll also create a unique identifier for each review, by first combining `review_num` and `page_num`. (We could have hashed these using e.g. the `digest` package but stringing them together into `doc_identifier` gives us more understandable information at a glance about the review.)
 
-```{r, dependson="source_in"}
+```{r numerise_sentiment, dependson="source_in"}
+dat <- 
+  read_rds(here("data", "derived", "dat.rds")) 
+
 dat <- dat %>% 
   rowwise() %>% 
   mutate(
@@ -707,9 +710,8 @@ dat <- dat %>%
 
 Then we can assign each piece of content a unique ID, starting with 1 for our oldest review.
 
-```{r, dependson="source_in"}
+```{r}
 uuids <- dat %>% 
-  select(content, doc_identifier) %>% 
   arrange(page_num, review_num) %>%
   nest(-doc_identifier) %>% 
   mutate(doc_uuid = nrow(.) - row_number() + 1) %>% 
@@ -853,16 +855,12 @@ We can go even deeper into these reviews by splitting them into their individual
 ```{r}
 dat_tokens_unnested <- 
   dat_clean %>% 
-  unnest_tokens(word, content) %>% 
-  anti_join(stop_words, "word") %>%
-  dobtools::find_nums() %>% 
-  filter(contains_num == FALSE) %>% 
-  add_count(word) %>% 
-  rename(
-    n_words_total = n
-  )
+    nest(-content, -doc_uuid) %>% 
+    unnest_tokens(word, content) %>% 
+    anti_join(stop_words, "word") %>%
+    dobtools::find_nums() %>% 
+    filter(contains_num == FALSE)
 ```
-
 
 The `tidytext` package also includes a `sentiments` dataset which we can join on our words to get a classification of the words' sentiment in three different lexicons as well as its score on a scale of -5 (negative) to 5 (positive). (`?tidytext::sentiments` for a full explanation of the dataset.) For example:
 
@@ -891,10 +889,20 @@ dat_tokens_unnested <-
 
 
 
+If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we can unnest our `dat_tokens_unnested_tfidf` dataframe in place of doing any joining.
+
+```{r}
+dat_tokens_unnested_unnested <- 
+  dat_tokens_unnested %>% 
+  unnest()
+```
+
+
+
 Do the words that make up an opinion unit have a significatn effect on the sentiment it's assigned by MonkeyLearn?
 
 ```{r}
-lm(data = dat_tokens_unnested %>% drop_na(sentiment_num, score_sentiment), 
+lm(data = dat_tokens_unnested_unnested %>% drop_na(sentiment_num, score_sentiment), 
    sentiment_num ~ score_sentiment) %>% 
   summary() %>% 
   tidy()
@@ -908,14 +916,28 @@ As a control, we can check whether words that appear at the beginning of the alp
 We'll extract just the first letter of the word and assign it the number of the alphabet from 1 to 24.
 
 ```{r}
+assign_number <- function(l) {
+  if (length(l) == 0 || ! l %in% letters) {
+    n <- NA_integer_
+  } else {
+    n <- which(letters == l)
+  
+  }
+  n
+}
+
+try_assign_number <- possibly(assign_number, otherwise = NA_integer_)
+```
+
+
+```{r}
 dat_tokens_unnested_first_letter <- 
   dat_tokens_unnested %>% 
   rowwise() %>% 
   mutate(
     first_letter = substr(word, 1, 1),
-    first_letter_num = which(letters == first_letter)
+    first_letter_num = try_assign_number(first_letter)
   ) 
-
 ```
 
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our dataset.
@@ -1020,6 +1042,46 @@ search_for(word = "use") %>%
   kable()
 ```
 
+
+#### TF-IDF
+
+We need to get within-document counts of each word. We'll also count how often the word is used in all reviews
+
+```{r}
+dat_tokens_unnested_counts <- 
+  dat_tokens_unnested %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_total = n
+  ) %>% 
+  group_by(doc_uuid) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_this_doc = n
+  )  %>% 
+  ungroup()
+```
+
+
+Now we can ask `tidytext` to do a mutate and attach the `tf_idf` of each word to our dataframe.
+
+```{r}
+dat_tokens_unnested_tfidf <- 
+  dat_tokens_unnested_counts %>% 
+  bind_tf_idf(word, doc_uuid, n_words_this_doc)
+```
+
+A question we might be interested in is: which words are most distinctive to each category?
+
+```{r}
+dat_tokens_unnested_tfidf %>% 
+  unnest() %>% 
+  group_by(category) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  select(word, word_sentiment, category, tf_idf) %>% 
+  distinct(word, category, tf_idf) %>% 
+  arrange(category, word)
+```
 
 
 

@@ -141,12 +141,6 @@ dat_tokens_unnested <-
               by = "word") %>% 
     select(-is_num, -contains_num) 
   
-# Initial summary
-dat_tokens_unnested_tfidf %>% 
-  group_by(word, n_words_total) %>% 
-  summarise(
-    mean_sentiment_num = mean(sentiment_num)
-  )
   
 # Counts for overall word and within doc word
 dat_tokens_unnested_counts <- 
@@ -167,6 +161,13 @@ dat_tokens_unnested_tfidf <-
   dat_tokens_unnested_counts %>% 
   bind_tf_idf(word, doc_uuid, n_words_this_doc)
 
+
+# Initial summary
+dat_tokens_unnested_tfidf %>% 
+  group_by(word, n_words_total) %>% 
+  summarise(
+    mean_sentiment_num = mean(sentiment_num)
+  )
 
 dat_tokens_unnested_tfidf_unnested <- 
   dat_tokens_unnested_tfidf %>% 
@@ -189,6 +190,9 @@ dat_tokens_unnested_tfidf_unnested %>%
   select(word, word_sentiment, category, tf_idf) %>% 
   distinct(word, category, tf_idf) %>% 
   arrange(category, word)
+
+
+
 
 
 # How does MLs's classifications compare to 
