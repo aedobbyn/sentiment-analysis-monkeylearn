@@ -39,26 +39,34 @@ unnamed-chunk-36
 unnamed-chunk-37	category_freq
 unnamed-chunk-38	sentiment_by_category_weighted
 unnamed-chunk-39	
-unnamed-chunk-40	dat_tokens_unnested
+unnamed-chunk-40	ratings_by_sentiment
 unnamed-chunk-41	
 unnamed-chunk-42	
-unnamed-chunk-43	dat_tokens_unnested
-unnamed-chunk-44	dat_tokens_unnested_unnested
-unnamed-chunk-45	
-unnamed-chunk-46	assign_number	try_assign_number
-unnamed-chunk-47	dat_tokens_unnested_first_letter
+unnamed-chunk-43	subrated_dat
+unnamed-chunk-44	parsed_subratings	parsed_subratings_summary
+unnamed-chunk-45	parsed_subratings_summary
+unnamed-chunk-46	dat_tokens_unnested
+unnamed-chunk-47	
 unnamed-chunk-48	
-unnamed-chunk-49	
-unnamed-chunk-50	replace_y
-unnamed-chunk-51	category_reg
-unnamed-chunk-52	search_for
-unnamed-chunk-53	
+unnamed-chunk-49	dat_tokens_unnested
+unnamed-chunk-50	dat_tokens_unnested_unnested
+unnamed-chunk-51	
+unnamed-chunk-52	assign_number	try_assign_number
+unnamed-chunk-53	dat_tokens_unnested_first_letter
 unnamed-chunk-54	
-unnamed-chunk-55	dat_tokens_unnested_counts
-unnamed-chunk-56	dat_tokens_unnested_tfidf
+unnamed-chunk-55	
+unnamed-chunk-56	replace_y
 numerise_sentiment	dat
-unnamed-chunk-57	
-unnamed-chunk-58	problem_categories
-unnamed-chunk-59	pqr_complaints
+unnamed-chunk-57	category_reg
+unnamed-chunk-58	search_for
+unnamed-chunk-59	
 unnamed-chunk-60	
 unnamed-chunk-61	
+unnamed-chunk-62	dat_tokens_unnested_counts
+unnamed-chunk-63	dat_tokens_unnested_tfidf
+unnamed-chunk-64	category_tfidf	category_tfidf_maxes
+unnamed-chunk-65	sentiment_tfidf	sentiment_tfidf_maxes
+unnamed-chunk-66	problem_categories
+unnamed-chunk-67	pqr_complaints
+unnamed-chunk-68	
+unnamed-chunk-69	

@@ -100,7 +100,11 @@ strip_whitespace_newlines <- function(t) {
 
 Our `slack_url` loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL without involving [`RSelenium`](https://github.com/ropensci/RSelenium) or something more fancy, we can only scrape the first 99 reviews.
 
-However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a [`data-url`](https://en.wikipedia.org/wiki/Data_URI_scheme) parameter set to `"/gdm_reviews?page=1&product_id=135003"`. We can mash that together with our original URL to get https://www.capterra.com/gdm_reviews?page=1&product_id=135003 which reveals the same content our original URL (sans the styling). The `page=1` query parameter in this URL, though, is key; it gives us a way to select a certain page by changing the number after `page=`.
+However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a [`data-url`](https://en.wikipedia.org/wiki/Data_URI_scheme) parameter set to `"/gdm_reviews?page=1&product_id=135003"`. 
+
+![](./img/data_url.jpg)
+
+We can mash that together with our original URL to get https://www.capterra.com/gdm_reviews?page=1&product_id=135003 which reveals the same content our original URL (sans the styling). The `page=1` query parameter in this URL, though, is key; it gives us a way to select a certain page by changing the number after `page=`.
 
 Now we can construct the URLs for all the pages we want to iterate through. From a quick perusal of a few other pages, it looks like each one contains 99 reviews. We'll create URLs for the first 45, pages putting us at nearly the full content of our 4500 or so reviews.
 
@@ -130,6 +134,8 @@ scrape_rating <- function(url, i) {
 try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
 ```
 
+
+![](./img/slack_review_example.jpg)
 
 Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with `str_c(collapse = " ")` for now. We'll break those out later into a nested list column.
 
@@ -228,8 +234,8 @@ get_ratings_and_content <- function(url, review_range = 1:50,
   out <- out %>% 
     rowwise() %>% 
     mutate(
-      rating_perc = ifelse(is.na(rating), NA_character_, 
-                           parse(text = rating) %>% eval()) %>% as.character()
+      rating_perc = ifelse(is.na(rating), NA_real_, 
+                           parse(text = rating) %>% eval()) 
     ) %>% 
     select(page_num, review_num, rating, sub_ratings, rating_perc, content)
   
@@ -843,6 +849,81 @@ ggplot(sentiment_by_category_weighted) +
 ```
 
 
+What about ratings? How do those line up with sentiments we assigned?
+
+```{r}
+ratings_by_sentiment <- 
+  dat_clean %>% 
+  group_by(sentiment) %>% 
+  summarise(
+    mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
+  )
+```
+
+There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parcelled into multiple opinions.)
+
+This indicates that despite critiques and a good chunk of negative opinion units, most overall reviews remain positive.
+
+```{r, include=FALSE}
+ggplot(dat_clean) +
+  geom_jitter(aes(sentiment_num, as.numeric(rating_perc))) +
+  geom_smooth(aes(sentiment_num, as.numeric(rating_perc)), method = "lm")
+```
+
+```{r}
+ggplot(ratings_by_sentiment) +
+  geom_bar(aes(sentiment, mean_rating), stat = "identity") +
+  coord_cartesian(ylim = c(0.85, 1))
+```
+
+
+We can dig into sub_ratings
+
+```{r, include=FALSE}
+subrated_dat <- 
+  dat_clean %>% 
+  unnest(sub_ratings_split) %>% 
+  mutate(
+    subrating_rating = subrating_rating %>% as.numeric()
+  ) %>% 
+  select(doc_uuid, subrating_title, subrating_rating, sentiment, sentiment_num, rating_perc, opinion_unit)
+```
+
+```{r}
+parsed_subratings <-
+  reviews_with_subratings_unnested %>% 
+  rowwise() %>% 
+  mutate(subrating_num = 
+         ifelse(is.na(sub_rating_rating), NA, 
+                           parse(text = sub_rating_rating) %>% eval()) 
+  ) 
+
+parsed_subratings_summary <- 
+  parsed_subratings %>% 
+  drop_na(subrating_num, sub_rating_category) %>% 
+  group_by(sub_rating_category) %>%
+  summarise(
+    mean_subrating = mean(subrating_num)
+  )
+
+parsed_subratings_summary %>% 
+  dobtools::cap_df() %>% 
+  kable()
+```
+
+
+How do these sub-ratings match up with category ratings we calculated earlier?
+
+```{r}
+parsed_subratings_summary$alias <- c("Customer Support", "Ease of Use", "General", "Pricing")
+
+parsed_subratings_summary %>% 
+  left_join(sentiment_by_category, 
+            by = c("alias" = "category"))
+```
+
+
+
 
 
 <br>
@@ -1043,9 +1124,24 @@ search_for(word = "use") %>%
 ```
 
 
+```{r}
+search_for(word = "want") %>% 
+  drop_na(phrase_categories) %>% 
+  dobtools::replace_na_df() %>% 
+  head() %>% 
+  kable()
+```
+
+
+
+
 #### TF-IDF
 
-We need to get within-document counts of each word. We'll also count how often the word is used in all reviews
+Term frequency inverse document frequency is a measure of how often a word appears in a given document (here, a review) as opposed to overall, in all of the documents. That can give us a sense of how important it is to a given document as compared to a baseline of all words used in the entire corpus.
+
+What we can learn from TF-IDF is, for instance, what words do people often use in reviews when they're talking about a specific aspect of the product that they tend to use less frequently when talking about other aspects of the product?
+
+To get every word's TF-IDF, we need to get within-document counts of each word. We'll also count how often the word is used in all reviews.
 
 ```{r}
 dat_tokens_unnested_counts <- 
@@ -1059,7 +1155,7 @@ dat_tokens_unnested_counts <-
   rename(
     n_words_this_doc = n
   )  %>% 
-  ungroup()
+  ungroup() 
 ```
 
 
@@ -1071,17 +1167,61 @@ dat_tokens_unnested_tfidf <-
   bind_tf_idf(word, doc_uuid, n_words_this_doc)
 ```
 
-A question we might be interested in is: which words are most distinctive to each category?
+A question we might be interested in is: which words are most distinctive to opinion units tagged with each category?
 
 ```{r}
-dat_tokens_unnested_tfidf %>% 
+category_tfidf <-
+  dat_tokens_unnested_unnested %>% 
+  group_by(category) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_this_category = n
+  )  %>% 
+  ungroup() %>% 
+  bind_tf_idf(word, category, n_words_this_category) %>% 
+  select(word, category, tf_idf, opinion_unit, sentiment)
+
+category_tfidf_maxes <- 
+  category_tfidf %>% 
   unnest() %>% 
   group_by(category) %>% 
   filter(tf_idf == max(tf_idf)) %>% 
-  select(word, word_sentiment, category, tf_idf) %>% 
+  select(word, sentiment, category, tf_idf) %>% 
   distinct(word, category, tf_idf) %>% 
-  arrange(category, word)
+  arrange(category, word) 
+
+category_tfidf %>% 
+  dobtools::cap_df() %>% 
+  kable()
 ```
+
+```{r, include=FALSE}
+sentiment_tfidf <-
+  dat_tokens_unnested_unnested %>% 
+  group_by(sentiment) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_this_sentiment = n
+  )  %>% 
+  ungroup() %>% 
+  bind_tf_idf(word, sentiment, n_words_this_sentiment) %>% 
+  select(word, sentiment, tf_idf, opinion_unit, category)
+
+sentiment_tfidf_maxes <- 
+  sentiment_tfidf %>% 
+  unnest() %>% 
+  group_by(sentiment) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  # filter(tf_idf > mean(tf_idf) + sd(tf_idf)*2) %>% 
+  select(word, sentiment, category, tf_idf) %>% 
+  distinct(word, sentiment, tf_idf) %>% 
+  arrange(sentiment, word) 
+
+sentiment_tfidf %>% 
+  dobtools::cap_df() %>% 
+  kable()
+```
+
 
 
 
@@ -1126,6 +1266,9 @@ dat_tokens_unnested %>%
 ```
 
 So interestingly, even though mobile is mentioned more often than desktop in reviews, most of the P-Q-R complaints seem to be about the desktop app. 
+
+
+This is an area where companies can compare their own metrics to the same data scraped from reviews of other companies and trained using the same or very similar modules.
 
 
 ## Wrap-Up
