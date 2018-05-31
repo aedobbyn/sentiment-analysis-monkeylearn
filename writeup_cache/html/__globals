@@ -1,5 +1,5 @@
 unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext
-source_in	all_reviews_slack	read_csv	here	reviews_with_subratings_nested	reviews_with_subratings_unnested	data_dir	glue	dat
+source_in	all_reviews_slack	read_csv	here	reviews_with_subratings_nested	reviews_with_subratings_unnested	data_dir	glue	dat	read_rds
 unnamed-chunk-2	paths_allowed
 unnamed-chunk-3	slack_url
 unnamed-chunk-4	strip_whitespace_newlines	out	t	%>%	str_replace_all	trimws	return
@@ -15,7 +15,7 @@ unnamed-chunk-13	all_reviews_slack	%>%	head	kable
 unnamed-chunk-14	make_files	a	glue	data_dir	out	i	page_range	b	c	%>%	map_chr	str_c	return	fls	pages_want
 unnamed-chunk-15	all_reviews_slack	map_dfr	fls	read_rds	%>%	unnest	page_num	drop_na	content
 unnamed-chunk-16	clean_content	out	t	%>%	str_replace_all	return
-unnamed-chunk-17	split_subratings	is.na	inp	out	tibble	return	nums	%>%	str_extract_all	map	str_replace_all	as_vector	names	str_split	length
+unnamed-chunk-17	split_subratings	is.na	inp	out	tibble	return	subrating_rating	%>%	str_extract_all	map	str_replace_all	as_vector	subrating_title	str_split	length
 unnamed-chunk-18	reviews_with_subratings	all_reviews_slack	%>%	rowwise	mutate	split_subratings	sub_ratings	list	select	drop_na	content	filter	%in%	c	as.numeric	page_num	reviews_with_subratings_unnested	unnest	rename	names	nums	arrange	review_num	sub_rating_category
 unnamed-chunk-19	reviews_with_subratings_unnested	%>%	slice	kable
 unnamed-chunk-20	replacement_classifier	tribble	category_id	probability	label	%>%	list	replacement_extractor	count	tag	entity
@@ -30,7 +30,7 @@ unnamed-chunk-27	gather_batches	fls	dir_ls	dir	list_o_batches	map	read_csv	out	%
 unnamed-chunk-28	reviews_with_subratings_nested	%>%	write_extraction_batches	opinion_batches_extracted	gather_batches	opinion_batches_dir	rename	probability	write_classification_batches	dat	topic_batches_dir
 unnamed-chunk-29	dat	%>%	head	kable
 unnamed-chunk-30	dat	sentiment	%>%	factor	levels
-unnamed-chunk-31	dat	%>%	rowwise	mutate	switch	sentiment	ungroup
+unnamed-chunk-31	dat	%>%	rowwise	mutate	switch	sentiment	str_c	review_num	page_num	ungroup
 unnamed-chunk-32	dat	category	%>%	factor	levels
 unnamed-chunk-33	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
 unnamed-chunk-34	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total	ggplot	geom_bar	aes	sentiment_prop	geom_text	round	scale_y_continuous	percent	ggtitle	labs	theme_bw

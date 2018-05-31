@@ -675,7 +675,7 @@ We could even have skipped the `gather_batches` steps if everything went well wi
 
 Let's take a look at our data.
 
-```{r}
+```{r, dependson="source_in"}
 dat %>% 
   head() %>% 
   kable()
@@ -689,17 +689,37 @@ dat$sentiment %>% factor() %>% levels()
 
 so we can assign a number to each type of sentiment. 
 
-```{r}
+We'll also create a unique identifier for each review, by first combining `review_num` and `page_num`. (We could have hashed these using e.g. the `digest` package but stringing them together into `doc_identifier` gives us more understandable information at a glance about the review.)
+
+```{r, dependson="source_in"}
 dat <- dat %>% 
   rowwise() %>% 
   mutate(
     sentiment_num = switch(sentiment, 
                            "Negative" = -1,
                            "Neutral" = 0,
-                           "Positive" = 1)
+                           "Positive" = 1),
+    
+    doc_identifier = str_c("r", review_num, "p", page_num, sep = "_")
   ) %>% 
   ungroup()
 ```
+
+Then we can assign each piece of content a unique ID, starting with 1 for our oldest review.
+
+```{r, dependson="source_in"}
+uuids <- dat %>% 
+  select(content, doc_identifier) %>% 
+  arrange(page_num, review_num) %>%
+  nest(-doc_identifier) %>% 
+  mutate(doc_uuid = nrow(.) - row_number() + 1) %>% 
+  select(-data)
+
+dat <- dat %>% 
+  left_join(uuids)
+```
+
+
 
 
 What about categories?

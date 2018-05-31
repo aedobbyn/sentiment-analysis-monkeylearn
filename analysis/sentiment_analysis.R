@@ -26,6 +26,7 @@ dat_unsplit <-
          )
 
 
+
 dat <- 
   dat_unsplit %>% 
   # unnest() %>% 
@@ -36,9 +37,13 @@ dat <-
   select(-ends_with("full")) %>%
   unnest(category, probability_unit, .preserve = sub_ratings_split)
 
+# write_rds(dat, here("data", "derived", "dat.rds"))
+
+
 dat_w_nums <- dat %>% 
   rowwise() %>% 
   mutate(
+    doc_identifier = str_c("r", review_num, "p", page_num, sep = "_"),
     sentiment_num = switch(sentiment, 
                            "Negative" = -1,
                            "Neutral" = 0,
@@ -46,8 +51,17 @@ dat_w_nums <- dat %>%
   ) %>% 
   ungroup()
 
+uuids <- dat_w_nums %>% 
+  arrange(page_num, review_num) %>%
+  select(content, doc_identifier) %>% 
+  nest(-doc_identifier) %>% 
+  mutate(doc_uuid = nrow(.) - row_number() + 1) %>% 
+  select(-data)
 
-# write_rds(dat_w_nums, here("data", "derived", "dat.rds"))
+dat_w_nums <- dat_w_nums %>% 
+  left_join(uuids)
+
+
 
 
 dat_clean <-
@@ -89,10 +103,24 @@ ggplot(dat_clean) +
 
 
 # How have reviews changed over time?
-ggplot(dat_clean %>% 
-         distinct(content, .keep_all = TRUE) %>% 
-         mutate(row_num = row_number())) +
-  geom_smooth(aes(row_num, sentiment_num))
+ggplot(dat_clean) +
+  # geom_smooth(aes(-1*(page_num*99 + review_num), sentiment_num),
+  #             colour = "blue") +
+  # geom_smooth(aes(-1*(page_num*99 + review_num), rating_perc %>% as.numeric()),
+  #             colour = "red") +
+  geom_smooth(aes(doc_uuid, sentiment_num),
+              colour = "blue") +
+  geom_smooth(aes(doc_uuid, rating_perc %>% as.numeric()),
+              colour = "red")
+
+
+dat_clean %>% 
+  group_by(doc_uuid) %>%
+  select(rating_perc)
+  summarise(
+    mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
+  )
+
 
 
 
@@ -102,35 +130,66 @@ ggplot(dat_clean %>%
 
 dat_tokens_unnested <- 
   dat_clean %>% 
-  rowwise() %>% 
-  mutate(
-    doc_uuid = str_c("r", review_num, "p", page_num, sep = "_")
-    # doc_hash = digest::digest(str_c(review_num, page_num, collapse = "_"))
-  ) %>% 
-  unnest_tokens(word, content) %>% 
-  anti_join(stop_words, "word") %>%
-  dobtools::find_nums() %>% 
-  filter(contains_num == FALSE) %>% 
-  add_count(word) %>% 
-  rename(
-    n_words_total = n
-  ) 
-
-dat_tokens_unnested <-  
-  dat_tokens_unnested %>% 
-  # select(-is_num, -contains_num) %>% 
-  left_join(tidytext::sentiments %>% 
-              rename(word_sentiment = sentiment,
-                     score_sentiment = score), 
-            by = "word")
-
-# Need full content (document) to bind tf idf 
-
-dat_tokens_unnested %>% 
+    nest(-content, -doc_uuid) %>% 
+    unnest_tokens(word, content) %>% 
+    anti_join(stop_words, "word") %>%
+    dobtools::find_nums() %>% 
+    filter(contains_num == FALSE) %>% 
+    left_join(tidytext::sentiments %>% 
+                rename(word_sentiment = sentiment,
+                       score_sentiment = score), 
+              by = "word") %>% 
+    select(-is_num, -contains_num) 
+  
+# Initial summary
+dat_tokens_unnested_tfidf %>% 
   group_by(word, n_words_total) %>% 
   summarise(
     mean_sentiment_num = mean(sentiment_num)
   )
+  
+# Counts for overall word and within doc word
+dat_tokens_unnested_counts <- 
+  dat_tokens_unnested %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_total = n
+  ) %>% 
+  group_by(doc_uuid) %>% 
+  add_count(word) %>% 
+  rename(
+    n_words_this_doc = n
+  )  %>% 
+  ungroup()
+
+# Get tfidf
+dat_tokens_unnested_tfidf <- 
+  dat_tokens_unnested_counts %>% 
+  bind_tf_idf(word, doc_uuid, n_words_this_doc)
+
+
+dat_tokens_unnested_tfidf_unnested <- 
+  dat_tokens_unnested_tfidf %>% 
+  unnest()
+
+
+# Most distinctive words per category, per sentiment
+dat_tokens_unnested_tfidf_unnested %>% 
+  group_by(category, sentiment_num) %>% 
+  filter(sentiment_num != 0) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  select(word, word_sentiment, category, sentiment_num, tf_idf) %>% 
+  distinct(word, category, sentiment_num, tf_idf) %>% 
+  arrange(category, word)
+
+# Most distinctive words per category
+dat_tokens_unnested_tfidf_unnested %>% 
+  group_by(category) %>% 
+  filter(tf_idf == max(tf_idf)) %>% 
+  select(word, word_sentiment, category, tf_idf) %>% 
+  distinct(word, category, tf_idf) %>% 
+  arrange(category, word)
+
 
 # How does MLs's classifications compare to 
 two_sentiments <- 
