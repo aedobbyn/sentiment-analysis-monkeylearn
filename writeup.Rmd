@@ -100,7 +100,7 @@ strip_whitespace_newlines <- function(t) {
 
 Our `slack_url` loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL without involving [`RSelenium`](https://github.com/ropensci/RSelenium) or something more fancy, we can only scrape the first 99 reviews.
 
-However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a [`data-url`](https://en.wikipedia.org/wiki/Data_URI_scheme) parameter set to `"/gdm_reviews?page=1&product_id=135003"`. 
+However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a [`data-url`](https://en.wikipedia.org/wiki/Data_URI_scheme) parameter set to `"/gdm_reviews?page=1&product_id=135003"`[^1]. 
 
 ![](./img/data_url.jpg)
 
@@ -442,7 +442,7 @@ Now onto the data processing! This is where MonkeyLearn's custom modules come in
 
 ## Extracting Opinions and Classifying Topics & Sentiment
 
-First step is to extract opinion units from our review content. Each review will have one or many opinion units. What we want to end up with is one row per opinion unit, meaning multiple rows per original content line. Next, we send each opinion unit to the API to be assigned a a single sentiment (Positive, Negative, or Neutral) and classified into one or multiple topics. For topic classifications, we'll only worry about the "leaf" topics for these purposes.[^1]
+First step is to extract opinion units from our review content. Each review will have one or many opinion units. What we want to end up with is one row per opinion unit, meaning multiple rows per original content line. Next, we send each opinion unit to the API to be assigned a a single sentiment (Positive, Negative, or Neutral) and classified into one or multiple topics. For topic classifications, we'll only worry about the "leaf" topics for these purposes.[^2]
 
 The `monkeylearn` R package can get us most of the way there. `monkeylearn` exposes two functions for processing data: `monkey_extract` for extraction and `monkey_classify` for classification. They accept either a vector of texts or a dataframe and a named column where the texts live and return a dataframe relating each row of input to its outputs (either nested in a `res` column or unnested if `unnest` is TRUE). If unnested, that result will include a few columns including the extraction/classification label as well as the probability (confidence) MonkeyLearn assigns its classification/extraction We also need to supply an API key either as a string or (preferably) stored as an environment variable.
 
@@ -683,8 +683,7 @@ Let's take a look at our data.
 
 ```{r, dependson="source_in"}
 dat %>% 
-  head() %>% 
-  kable()
+  head() 
 ```
 
 There are only three possible sentiments for an opinion unit to have,
@@ -1034,7 +1033,7 @@ ggplot(dat_tokens_unnested_first_letter) +
   #             linetype = "dashed", se = FALSE) +
   geom_hline(data = dat_tokens_unnested_first_letter, yintercept = mean(dat_tokens_unnested_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
   labs(x = "First letter", y = "Sentiment") +
-  ggtitle("Relationship between a word's first letter on its sentiment") +
+  ggtitle("Relationship between a word's first letter and its sentiment") +
   theme_bw()
 ```
 
@@ -1064,13 +1063,14 @@ replace_y <- function (x, replacement = NA_character_) {
 }
 ```
 
-We might be interested in phrases that follow specific words like "use" or "don't use". We might also want to pull out a category or categories if they exist in the phrase. 
+We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for evertyhing after `word` and up until the first period.
 
-We'll make a regex for all of the categories MonkeyLearn has identified:
+We might also want to pull out a category or categories if they exist in the phrase. To that end we'll make a regex for all of the categories MonkeyLearn has identified (except Other which seems uninteresting):
 
 ```{r}
 category_reg <- 
-  str_c(dat_clean$category %>% tolower() %>% unique(), collapse = "|")
+  dat_clean$category[-which(dat_clean$category == "Other")] %>%
+  tolower() %>% unique() %>% str_c(collapse = "|") 
 ```
 
 
@@ -1084,7 +1084,7 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
   q_col = enquo(col)
   
   look_for <- ifelse(append_the == TRUE,
-                     glue("{word} the |{word_capped} the"),
+                     glue("{word} the |{word_capped} the "),
                      glue("{word} |{word_capped} "))
   
   out <- 
@@ -1095,8 +1095,10 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
     distinct(!!q_col) %>% 
     rowwise() %>% 
     mutate(
-      phrase = str_extract(!!q_col, glue("(?<={look_for}).*$")),
-      phrase_categories = str_extract_all(phrase, category_reg) %>% replace_y() %>% str_c(collapse = ", ")
+      phrase = str_extract(!!q_col, glue("(?<={look_for}).+$")) %>% 
+        str_replace_all("(?<=\\.).*", ""),
+      phrase_categories = str_extract_all(phrase, category_reg) %>% 
+        replace_y() %>% as_vector() %>% unique() %>% str_c(collapse = ", ")
     ) 
   
   return(out)
@@ -1190,7 +1192,7 @@ category_tfidf_maxes <-
   distinct(word, category, tf_idf) %>% 
   arrange(category, word) 
 
-category_tfidf %>% 
+category_tfidf_maxes %>% 
   dobtools::cap_df() %>% 
   kable()
 ```
@@ -1279,7 +1281,7 @@ Thanks and happy coding!
 
 
 
-[^1]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
+[^1]: Shoutout to some co-detective work with [Josh](https://www.fieldmuseum.org/blog/open-tree-life-toward-global-synthesis-phylogenetic-knowledge) [Stevens-Stein](https://github.com/jstevensstein)
 
-
+[^2]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
 

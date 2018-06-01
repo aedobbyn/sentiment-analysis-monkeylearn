@@ -28,7 +28,7 @@ unnamed-chunk-25	write_extraction_batches	opinion_batches_dir	write_batches	df	e
 unnamed-chunk-26	reviews_with_subratings_nested	%>%	write_extraction_batches	write_classification_batches
 unnamed-chunk-27	gather_batches	fls	dir_ls	dir	list_o_batches	map	read_csv	out	%>%	modify_depth	as.character	bind_rows	return
 unnamed-chunk-28	reviews_with_subratings_nested	%>%	write_extraction_batches	opinion_batches_extracted	gather_batches	opinion_batches_dir	rename	probability	write_classification_batches	dat	topic_batches_dir
-unnamed-chunk-29	dat	%>%	head	kable
+unnamed-chunk-29	dat	%>%	head
 unnamed-chunk-30	dat	sentiment	%>%	factor	levels
 unnamed-chunk-31	uuids	dat	%>%	arrange	page_num	review_num	nest	doc_identifier	mutate	nrow	.	row_number	select	data	left_join
 unnamed-chunk-32	dat	category	%>%	factor	levels
@@ -57,8 +57,8 @@ unnamed-chunk-54	ggplot	dat_tokens_unnested_first_letter	geom_smooth	aes	first_l
 unnamed-chunk-55	lm	dat_tokens_unnested_first_letter	%>%	drop_na	first_letter_num	score_sentiment	summary	tidy
 unnamed-chunk-56	replace_y	is.null	x	length	replacement
 numerise_sentiment	dat	read_rds	here	%>%	rowwise	mutate	switch	sentiment	str_c	review_num	page_num	ungroup
-unnamed-chunk-57	category_reg	str_c	dat_clean	category	%>%	tolower	unique
-unnamed-chunk-58	search_for	dat_clean	content	word_capped	simple_cap	word	q_col	enquo	col	look_for	ifelse	append_the	glue	out	df	%>%	filter	str_detect	distinct	rowwise	mutate	str_extract	str_extract_all	phrase	category_reg	replace_y	str_c	return
+unnamed-chunk-57	category_reg	dat_clean	category	which	%>%	tolower	unique	str_c
+unnamed-chunk-58	search_for	dat_clean	content	word_capped	simple_cap	word	q_col	enquo	col	look_for	ifelse	append_the	glue	out	df	%>%	filter	str_detect	distinct	rowwise	mutate	str_extract	str_replace_all	str_extract_all	phrase	category_reg	replace_y	as_vector	unique	str_c	return
 unnamed-chunk-59	search_for	%>%	replace_na_df	head	kable
 unnamed-chunk-60	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	kable
 unnamed-chunk-61	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	kable
