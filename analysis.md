@@ -487,18 +487,46 @@ sentiment_by_category_weighted %>%
 
 ![](analysis_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
+**Overall ratings**
 
-What about ratings? How do those line up with sentiments we assigned?
+What about overall ratings of the product? How do those line up with sentiments assigned to each opinion unit by MonkeyLearn?
 
 
 ```r
 ratings_by_sentiment <-
   dat_clean %>%
+  distinct(doc_uuid, .keep_all = TRUE) %>% 
   group_by(sentiment) %>%
   summarise(
     mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
   )
+
+ratings_by_sentiment %>% 
+  kable()
 ```
+
+<table>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> sentiment </th>
+   <th style="text-align:right;"> mean_rating </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Negative </td>
+   <td style="text-align:right;"> 0.9305263 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Neutral </td>
+   <td style="text-align:right;"> 0.9600000 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Positive </td>
+   <td style="text-align:right;"> 0.9380255 </td>
+  </tr>
+</tbody>
+</table>
 
 There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
 
@@ -509,9 +537,15 @@ This indicates that despite critiques and a good chunk of negative opinion units
 
 
 
-We can dig into sub_ratings
+**Sub-Ratings**
+
+We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn.
+
+First we have to unnest our subratings which until now we've calmly shunted along in their own list column.
 
 
+
+We'll want to parse these "4/5", "5/5", etc. strings into numbers we can work with, in the same way we did the overall ratings.
 
 
 ```r
@@ -524,7 +558,12 @@ parsed_subratings <-
         parse(text = sub_rating_rating) %>% eval()
       )
   )
+```
 
+What are the overall mean ratings of each aspect of the platform?
+
+
+```r
 parsed_subratings_summary <-
   parsed_subratings %>%
   drop_na(subrating_num, sub_rating_category) %>%
@@ -566,7 +605,8 @@ parsed_subratings_summary %>%
 </table>
 
 
-How do these sub-ratings match up with category ratings we calculated earlier?
+
+How do these sub-ratings match up with category ratings we calculated earlier? Some of the subrating names match perfectly with MonkeyLearn categories like "Customer Support" and "Ease of Use", but the other two we'll need to assign an alias to be able to join it up with the mean MonkeyLearn sentiment for that category and compare the two.
 
 
 ```r
@@ -746,7 +786,7 @@ dat_tokenized_first_letter <-
 
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
-![](analysis_files/figure-html/unnamed-chunk-30-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-31-1.png)<!-- -->
 
 
 What about the statistical relationship?
