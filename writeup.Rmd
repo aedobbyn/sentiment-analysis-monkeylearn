@@ -899,7 +899,7 @@ ggplot(dat_clean) +
   geom_smooth(aes(sentiment_num, as.numeric(rating_perc)), method = "lm")
 ```
 
-```{r}
+```{r, include=FALSE}
 ggplot(ratings_by_sentiment) +
   geom_bar(aes(sentiment, mean_rating), stat = "identity") +
   coord_cartesian(ylim = c(0.85, 1))
