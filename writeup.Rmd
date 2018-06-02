@@ -12,15 +12,19 @@ output:
     toc: false
 ---
 
-MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular colaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/).
+MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/).
 
 What do people who use Slack think of it? What aspects of the product are the most beloved and despised (at least among people who take the time to write a review of the product)? These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
+
+**The Plan**
 
 Specifically, MonkeyLearn will handle extracting reviews into distinct opinion units and attaching topics and sentiments to those opinion units. Most of what we have to do is shunt data back and forth between our environment and MonkeyLearn's custom machine learning modules. 
 
 The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we'll feed each of the reviews to MonkeyLearn in order to extract discrete opinion units from the text.  Finally, we'll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).
 
-The opinion unit approach gives us some more fine-grained control over what we're assigning sentiment to, since there can be multiple sentimetns in the same sentence. For instance, "I love Spring time but I hate the allergies that go along with it" would hopefully be broken into the units "I love Spring time" and "but I hate the allergies that go along with it" and assigned the sentiments Positive and Negative, respectively.
+The opinion unit approach gives us some more fine-grained control over what we're assigning sentiment to, since there can be multiple sentiments in the same sentence. For instance, "I love Spring time but I hate the allergies that go along with it" would hopefully be broken into the units "I love Spring time" and "but I hate the allergies that go along with it" and assigned the sentiments Positive and Negative, respectively.
+
+Then we're left with a dataset of opinion units, each tagged with a sentiment as well as with one or many categories that we can sink our teeth into.
 
 
 ### Scraping the Data
@@ -75,9 +79,17 @@ robotstxt::paths_allowed(
 )
 ```
 
-Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content that lives inside a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](http://selectorgadget.com/). 
+Now that we know we're good to go, we can start scraping Capterra. I'll use the popular package `rvest` to do the scraping. `rvest` allows us to ask for content that lives inside a specific HTML tag or CSS class rather than grabbing all text on the page. We can find out which elements on the page to extract using the [SelectorGadget Chrome extension](http://selectorgadget.com/).
 
-In this case, we'll want each review's overall rating, all of its sub-ratings, as well as the text, or content, of the review. What I'm calling sub-ratings are the reviews' ratings of certain aspects of the service like Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give these aspects a rating from 1 to 5 out of 5.
+On Capterra, reviews are parceled into chunks including the reviewer's overall rating of the product, the text of their review, and what I'm calling sub-ratings -- the ratings of certain aspects of the product, e.g. Customer Support, Ease of Use, and Value for Money. Like the overall rating, users have the option to give these aspects a rating from 1 to 5 out of 5.
+
+<br>
+
+![](./img/slack_review_example.jpg)
+
+<br>
+
+We want each review's overall rating, all of its sub-ratings, and the content of the review. 
 
 We'll first store the URL where the Slack reviews appear,
 
@@ -97,12 +109,17 @@ strip_whitespace_newlines <- function(t) {
 }
 ```
 
+**Grabbing multiple pages**
 
 Our `slack_url` loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL without involving [`RSelenium`](https://github.com/ropensci/RSelenium) or something more fancy, we can only scrape the first 99 reviews.
 
 However, through a bit of investigation of the "Show more reviews" button in the Chrome inspector, I saw that inside the link's `a` tag is a [`data-url`](https://en.wikipedia.org/wiki/Data_URI_scheme) parameter set to `"/gdm_reviews?page=1&product_id=135003"`[^1]. 
 
+<br>
+
 ![](./img/data_url.jpg)
+
+<br>
 
 We can mash that together with our original URL to get https://www.capterra.com/gdm_reviews?page=1&product_id=135003 which reveals the same content our original URL (sans the styling). The `page=1` query parameter in this URL, though, is key; it gives us a way to select a certain page by changing the number after `page=`.
 
@@ -113,6 +130,8 @@ pages_want <- 1:45
 slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
 ```
 
+
+**Defining some scraping functions**
 
 We can specify which of the 99 reviews on a page we want to scrape with from the review's number, contained in `#review-<review_number_here>` What `scrape_rating` will do is  `#review-{i} .overall-rating` We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
 
@@ -134,8 +153,6 @@ scrape_rating <- function(url, i) {
 try_scrape_rating <- possibly(scrape_rating, otherwise = NA_character_)
 ```
 
-
-![](./img/slack_review_example.jpg)
 
 Same deal for content and sub-ratings except we use a different selector and concatenate all of the ratings with `str_c(collapse = " ")` for now. We'll break those out later into a nested list column.
 
@@ -172,7 +189,7 @@ scrape_content <- function(url, i) {
 ```
 
 
-
+We'll similarly wrap each of these in a trycatch.
 
 ```{r}
 try_scrape_sub_ratings <- possibly(scrape_sub_ratings, otherwise = NA_character_)
@@ -180,10 +197,13 @@ try_scrape_content <- possibly(scrape_content, otherwise = NA_character_)
 ```
 
 
+Let's try asking for just the 42nd review on the first page.
+
 ```{r}
 try_scrape_content(slack_full_urls[1], 42)
 ```
 
+**Combining scraping functions**
 
 Now all that's left is to string these all together in the right order inside a function, `get_ratings_and_content`, that grabs a vector of reviews from a single page. We can keep track of which page we're scraping by extracting it straight from the URL itself. (If we use the original Slack URL which doesn't contain a page number, the `page` value gets an `NA`.)
 
@@ -246,13 +266,16 @@ get_ratings_and_content <- function(url, review_range = 1:50,
 
 
 
-Let's give it a go.
+Let's give it a go with the first three reviews on the 10th page.
 
 ```{r sample_ratings_scraped, eval=TRUE, cache=TRUE}
 get_ratings_and_content(url = slack_full_urls[10], 
-                        review_range = 1:3)
+                        review_range = 1:3) %>% 
+  kable()
 ```
 
+
+**Grabbing multiple pages**
 
 Now that we can grab everything we want from a single page, let's wrap `get_ratings_and_content` up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we'll set our default `review_range` to that.
 
@@ -288,10 +311,11 @@ all_reviews_slack %>%
 ```
 
 
+<br>
 
-We could also read them all in from our directory and reconstitute the dataframe. 
+Since we saved all of these to their own files, we could also read them all in from our directory and reconstitute the dataframe. 
 
-```{r}
+```{r, eval=FALSE}
 make_files <- function(page_range) {
   a <- glue(data_dir, "page_{page_range}")
   out <- NULL
@@ -304,12 +328,7 @@ make_files <- function(page_range) {
 }
 
 fls <- make_files(page_range = pages_want)
-```
 
-
-Now all we need to do is read them in and stick them together into a dataframe.
-
-```{r, eval=FALSE}
 all_reviews_slack <- 
   map_dfr(fls, read_rds) %>% 
   unnest(page_num) %>% 
@@ -322,7 +341,7 @@ all_reviews_slack <-
 
 ### Post-Processing
 
-Next a few quick cleaning steps. Our review content often represents newlines by including a lot of extra whitespace. We'll `clean_content` by cleaning out multiple spaces.
+We've got data! Next a few quick cleaning steps. Our review content often represents newlines by including a lot of extra whitespace. We'll `clean_content` by cleaning out multiple spaces.
 
 ```{r}
 clean_content <- function(t) {
@@ -362,6 +381,7 @@ clean_content <- function(t) {
 <!-- } -->
 <!-- ``` -->
 
+**Tidying subratings**
 
 Now let's clean up our subratings. When we scraped subratings we concatenated all of them into one long string because there wasn't an selector for each individual subrating. We want to split sub-ratings up into their own rows; for each long string, we'll extract all numbers and the corresponding name of the sub-rating the rating number belongs to (e.g. Value for Money 5/5) into a dataframe representing the same information in tidy format. We'll nest these in their own list column for later unnesting if we so choose. Rows without any sub-ratings get the appropriate NAs in both columns.
 
@@ -449,6 +469,8 @@ The `monkeylearn` R package can get us most of the way there. `monkeylearn` expo
 As of `monkeylearn` 2.0 it is possible to send batches of texts to the API and return a dataframe relating each input to its (often) multiple outputs. We don't need to handle batching ourselves; `monkeylearn` will by default send 200 texts per batch (the recommended maximum number of texts to be sent to the API at once) and move onto the next batch of 200 until we get to the end of our input. Similarly, `monkeylearn` already takes care of rate limiting, so we don't need to put in any custom sleeps between requests ourselves.
 
 
+**Tweaking the API response**
+
 Since we're working with custom-trained extractors and classifiers, the API response is slightly different from responses that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly. For that reason, we'll set `unnest` to FALSE inside of `monkey_extract` and `monkey_classify` and do the unnesting ourselves.
 <!-- The API returns zero-length vectors or `NULL`s for empty opinion units or when a unit wasn't classified into any categories. -->
 
@@ -467,7 +489,7 @@ replacement_extractor <- tribble(
 ) 
 ```
 
-We'll use these replacements inside the unnesting helpers below. They're different because of slighly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
+We'll use these replacements inside the unnesting helpers below. They're different because of slightly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
 
 ```{r}
 unnest_result_classifier <- function(df) {
@@ -497,7 +519,7 @@ try_unnest_result_classifier <- safely(unnest_result_classifier)
 ```
 
 
-We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error. We put this precaution in place because our `monkey_` function could throw an error for a few reasons; our request to MonkeyLearn could fail because either we or the server lose network connectivity, we receive a response we didn't expect and try to perform some operation on it that fails, or for some other unforseen reason.
+We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error. We put this precaution in place because our `monkey_` function could throw an error for a few reasons; our request to MonkeyLearn could fail because either we or the server lose network connectivity, we receive a response we didn't expect and try to perform some operation on it that fails, or for some other unforeseen reason.
 
 ```{r}
 get_classification_batch <- 
@@ -518,6 +540,7 @@ safe_return
 
 The function executes successfully and we get a record of the error message.
 
+**Batching input to the MonkeyLearn API**
 
 Now a function wrap up `monkey_classify` and `monkey_extract`. Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
 
@@ -650,7 +673,9 @@ gather_batches <- function(dir, end_row) {
 ```
 
 
-Cool, now we've set up everything we need to process our data and reconsitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its sentiment rating and multiple classifications per opinion unit.
+**Sending text the API and gathering it all up again**
+
+Cool, now we've set up everything we need to process our data and reconstitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its sentiment rating and multiple classifications per opinion unit.
 
 ```{r, eval=FALSE}
 # Write opinion units
@@ -679,43 +704,23 @@ We could even have skipped the `gather_batches` steps if everything went well wi
 
 ## Analysis
 
-Let's take a look at our data.
+We've got data! `r emo::ji("tada") ` Let's take a look at it. 
 
 ```{r, dependson="source_in"}
 dat %>% 
-  head() 
+  slice(1:20) 
 ```
 
-There are only three possible sentiments for an opinion unit to have,
+Since there are multiple rows per review, we'll want a unique identifier for each. Each `page_num, review_num` combination represents a unique review. We could hash these two values but since we have the benefit of knowing that the reviews happen in chronological order, it seems better to number them, starting with 1 for our oldest review.
+
+For good measure I also created a `doc_identifier` by smushing together the page and review number.
 
 ```{r}
-dat$sentiment %>% factor() %>% levels()
-```
-
-so we can assign a number to each type of sentiment. 
-
-We'll also create a unique identifier for each review, by first combining `review_num` and `page_num`. (We could have hashed these using e.g. the `digest` package but stringing them together into `doc_identifier` gives us more understandable information at a glance about the review.)
-
-```{r numerise_sentiment, dependson="source_in"}
-dat <- 
-  read_rds(here("data", "derived", "dat.rds")) 
-
-dat <- dat %>% 
-  rowwise() %>% 
+dat <- dat %>%
   mutate(
-    sentiment_num = switch(sentiment, 
-                           "Negative" = -1,
-                           "Neutral" = 0,
-                           "Positive" = 1),
-    
     doc_identifier = str_c("r", review_num, "p", page_num, sep = "_")
-  ) %>% 
-  ungroup()
-```
+  )
 
-Then we can assign each piece of content a unique ID, starting with 1 for our oldest review.
-
-```{r}
 uuids <- dat %>% 
   arrange(page_num, review_num) %>%
   nest(-doc_identifier) %>% 
@@ -723,9 +728,30 @@ uuids <- dat %>%
   select(-data)
 
 dat <- dat %>% 
-  left_join(uuids)
+  left_join(uuids) 
 ```
 
+
+There are only three possible sentiments for an opinion unit to have,
+
+```{r}
+dat$sentiment %>% factor() %>% levels()
+```
+
+so we can assign a number to each type of sentiment in order to be able to represent them on an ordinal scale. 
+
+
+```{r numerise_sentiment, dependson="source_in"}
+dat <- dat %>% 
+  rowwise() %>% 
+  mutate(
+    sentiment_num = switch(sentiment, 
+                           "Negative" = -1,
+                           "Neutral" = 0,
+                           "Positive" = 1)
+  ) %>% 
+  ungroup()
+```
 
 
 
@@ -747,6 +773,10 @@ dat_clean <-
            probability_sentiment > probability_cutoff & probability_unit > probability_cutoff)
 ```
 
+After cleaning, we've got `r length(unique(dat_clean$doc_uuid))` unique opinion units to work with, each with a single sentiment and multiple classifications.
+
+
+**Initial exploring**
 
 Now let's get the lay of the land by seeing what the breakdown of sentiments is overall.
 
@@ -762,18 +792,18 @@ sentiment_breakdown <-
 
 ggplot(sentiment_breakdown) +
   geom_bar(aes(sentiment, sentiment_prop, fill = sentiment), position = "dodge", stat = "identity") + 
-  geom_text(aes(sentiment, sentiment_prop + 0.03, label = round(sentiment_prop*100, digits = 2)),
+  geom_text(aes(sentiment, sentiment_prop + 0.03, label = paste0(round(sentiment_prop*100, digits = 2), "%")),
             fontface = "italic", size = 3) +
   scale_y_continuous(labels = scales::percent) +
   ggtitle("Sentiment Breakdown, Overall") +
-  labs(x = "Sentiment", y = "Proportion", fill = "Sentiment") +
+  labs(x = "Sentiment", y = "Percent", fill = "Sentiment") +
   theme_bw()
 ```
 
 We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there `r emo::ji("laughing")`.)
 
 
-What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each cateogry.
+What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each category.
 
 
 ```{r}
@@ -859,7 +889,7 @@ ratings_by_sentiment <-
   )
 ```
 
-There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parcelled into multiple opinions.)
+There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
 
 This indicates that despite critiques and a good chunk of negative opinion units, most overall reviews remain positive.
 
@@ -930,10 +960,12 @@ parsed_subratings_summary %>%
 
 ### Down to the word level
 
-We can go even deeper into these reviews by splitting them into their individual words. The `tidytext` package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". My helper [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R) mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
+Now that we have classifications for each opinion units, we can see how the individual words in opinion units map to the sentiment and category classification they were assigned, and maybe gain some more granular insight about what people like and dislike about the product.
+
+The `tidytext` package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". My helper [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R) mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
 
 ```{r}
-dat_tokens_unnested <- 
+dat_tokenized <- 
   dat_clean %>% 
     nest(-content, -doc_uuid) %>% 
     unnest_tokens(word, content) %>% 
@@ -954,12 +986,12 @@ and
 sentiments %>% filter(word == "yummy")
 ```
 
-(Don't ask me why yummy is more positive than yucky is negative `r emo::ji("laughing")`.) Anyway, let's join this on our dataset by "word".
+(Don't ask me why yummy is more positive than yucky is negative `r emo::ji("laughing")`.) Anyway, let's join this on our data set by "word".
 
 
 ```{r}
-dat_tokens_unnested <-  
-  dat_tokens_unnested %>% 
+dat_tokenized <-  
+  dat_tokenized %>% 
   select(-is_num, -contains_num) %>%
   left_join(tidytext::sentiments %>% 
               rename(word_sentiment = sentiment,
@@ -969,20 +1001,20 @@ dat_tokens_unnested <-
 
 
 
-If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we can unnest our `dat_tokens_unnested_tfidf` dataframe in place of doing any joining.
+If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we can unnest our `dat_tokenized_tfidf` dataframe in place of doing any joining.
 
 ```{r}
-dat_tokens_unnested_unnested <- 
-  dat_tokens_unnested %>% 
+dat_tokenized_unnested <- 
+  dat_tokenized %>% 
   unnest()
 ```
 
 
 
-Do the words that make up an opinion unit have a significatn effect on the sentiment it's assigned by MonkeyLearn?
+Do the words that make up an opinion unit have a significant effect on the sentiment it's assigned by MonkeyLearn?
 
 ```{r}
-lm(data = dat_tokens_unnested_unnested %>% drop_na(sentiment_num, score_sentiment), 
+lm(data = dat_tokenized_unnested %>% drop_na(sentiment_num, score_sentiment), 
    sentiment_num ~ score_sentiment) %>% 
   summary() %>% 
   tidy()
@@ -1011,8 +1043,8 @@ try_assign_number <- possibly(assign_number, otherwise = NA_integer_)
 
 
 ```{r}
-dat_tokens_unnested_first_letter <- 
-  dat_tokens_unnested %>% 
+dat_tokenized_first_letter <- 
+  dat_tokenized %>% 
   rowwise() %>% 
   mutate(
     first_letter = substr(word, 1, 1),
@@ -1020,10 +1052,10 @@ dat_tokens_unnested_first_letter <-
   ) 
 ```
 
-And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our dataset.
+And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
 ```{r, echo=FALSE}
-ggplot(dat_tokens_unnested_first_letter) +
+ggplot(dat_tokenized_first_letter) +
   # geom_smooth(aes(first_letter_num, sentiment_num),
   #             colour = "blue") +
   geom_smooth(aes(first_letter_num, score_sentiment),
@@ -1031,7 +1063,7 @@ ggplot(dat_tokens_unnested_first_letter) +
   # geom_smooth(aes(first_letter_num, score_sentiment),
   #             colour = "dark green", method = "lm",
   #             linetype = "dashed", se = FALSE) +
-  geom_hline(data = dat_tokens_unnested_first_letter, yintercept = mean(dat_tokens_unnested_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
+  geom_hline(data = dat_tokenized_first_letter, yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
   labs(x = "First letter", y = "Sentiment") +
   ggtitle("Relationship between a word's first letter and its sentiment") +
   theme_bw()
@@ -1041,7 +1073,7 @@ ggplot(dat_tokens_unnested_first_letter) +
 What about the statistical relationship?
 
 ```{r}
-lm(data = dat_tokens_unnested_first_letter %>% drop_na(first_letter_num, score_sentiment), 
+lm(data = dat_tokenized_first_letter %>% drop_na(first_letter_num, score_sentiment), 
    first_letter_num ~ score_sentiment) %>% 
   summary() %>% 
   tidy()
@@ -1063,7 +1095,7 @@ replace_y <- function (x, replacement = NA_character_) {
 }
 ```
 
-We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for evertyhing after `word` and up until the first period.
+We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for everything after `word` and up until the first period.
 
 We might also want to pull out a category or categories if they exist in the phrase. To that end we'll make a regex for all of the categories MonkeyLearn has identified (except Other which seems uninteresting):
 
@@ -1146,8 +1178,8 @@ What we can learn from TF-IDF is, for instance, what words do people often use i
 To get every word's TF-IDF, we need to get within-document counts of each word. We'll also count how often the word is used in all reviews.
 
 ```{r}
-dat_tokens_unnested_counts <- 
-  dat_tokens_unnested %>% 
+dat_tokenized_counts <- 
+  dat_tokenized %>% 
   add_count(word) %>% 
   rename(
     n_words_total = n
@@ -1164,8 +1196,8 @@ dat_tokens_unnested_counts <-
 Now we can ask `tidytext` to do a mutate and attach the `tf_idf` of each word to our dataframe.
 
 ```{r}
-dat_tokens_unnested_tfidf <- 
-  dat_tokens_unnested_counts %>% 
+dat_tokenized_tfidf <- 
+  dat_tokenized_counts %>% 
   bind_tf_idf(word, doc_uuid, n_words_this_doc)
 ```
 
@@ -1173,7 +1205,7 @@ A question we might be interested in is: which words are most distinctive to opi
 
 ```{r}
 category_tfidf <-
-  dat_tokens_unnested_unnested %>% 
+  dat_tokenized_unnested %>% 
   group_by(category) %>% 
   add_count(word) %>% 
   rename(
@@ -1199,7 +1231,7 @@ category_tfidf_maxes %>%
 
 ```{r, include=FALSE}
 sentiment_tfidf <-
-  dat_tokens_unnested_unnested %>% 
+  dat_tokenized_unnested %>% 
   group_by(sentiment) %>% 
   add_count(word) %>% 
   rename(
@@ -1219,7 +1251,7 @@ sentiment_tfidf_maxes <-
   distinct(word, sentiment, tf_idf) %>% 
   arrange(sentiment, word) 
 
-sentiment_tfidf %>% 
+sentiment_tfidf_maxes %>% 
   dobtools::cap_df() %>% 
   kable()
 ```
@@ -1250,7 +1282,7 @@ pqr_complaints <-
   count(word, sort = TRUE)
 ```
 
-Is the desktop app or mobile app mentioned more in P-Q-R compaints?
+Is the desktop app or mobile app mentioned more in P-Q-R complaints?
 
 ```{r}
 pqr_complaints %>% 
@@ -1261,7 +1293,7 @@ pqr_complaints %>%
 How does that compare to the base rate of the mentions of desktop and mobile?
 
 ```{r}
-dat_tokens_unnested %>% 
+dat_tokenized %>% 
   filter(word %in% c("desktop", "mobile")) %>% 
   group_by(word) %>% 
   count()
@@ -1275,7 +1307,7 @@ This is an area where companies can compare their own metrics to the same data s
 
 ## Wrap-Up
 
-Here we've built a relatively straightfoward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. 
+Here we've built a relatively straightforward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. 
 
 Thanks and happy coding!
 
