@@ -12,9 +12,11 @@ output:
     toc: false
 ---
 
-MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/).
+MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/). You can find all of the analysis code as well the code used to generate this document on [GitHub](https://github.com/aedobbyn/sentiment-analysis-monkeylearn).
 
-What do people who use Slack think of it? What aspects of the product are the most beloved and despised (at least among people who take the time to write a review of the product)? These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
+What do people who use Slack think of it? What aspects of the product are the most beloved and despised (at least among people who take the time to write a review of the product)? 
+
+These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
 
 **The Plan**
 
@@ -35,12 +37,14 @@ We'll want to make sure that the website we're considering allows for scraping. 
 
 ```{r setup, echo=FALSE}
 library(knitr)
-opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-               cache = TRUE, autodep = TRUE,     
-               fig.width=12, fig.height=8,
-               cache.extra = list())
+opts_chunk$set(
+  echo = TRUE, warning = FALSE, message = FALSE,
+  cache = TRUE, autodep = TRUE,
+  fig.width = 12, fig.height = 8,
+  cache.extra = list()
+)
 
-options(knitr.table.format = 'html')
+options(knitr.table.format = "html")
 ```
 
 
@@ -63,11 +67,11 @@ reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_s
 
 data_dir <- glue(here::here("data", "raw"), "/")
 
-# dat <- 
-#   read_csv(here("data", "derived", "dat.csv")) 
+# dat <-
+#   read_csv(here("data", "derived", "dat.csv"))
 
-dat <- 
-  read_rds(here("data", "derived", "dat.rds")) 
+dat <-
+  read_rds(here("data", "derived", "dat.rds"))
 ```
 
 
@@ -101,10 +105,10 @@ and write quick helper for stripping out extra whitespace and newlines from our 
 
 ```{r}
 strip_whitespace_newlines <- function(t) {
-  out <- t %>% 
-    str_replace_all("\\n", " ") %>% 
-    trimws() 
-  
+  out <- t %>%
+    str_replace_all("\\n", " ") %>%
+    trimws()
+
   return(out)
 }
 ```
@@ -137,16 +141,16 @@ We can specify which of the 99 reviews on a page we want to scrape with from the
 
 ```{r}
 scrape_rating <- function(url, i) {
-  out <- url %>% 
-    read_html() %>% 
-    html_nodes(glue("#review-{i} .overall-rating")) %>% 
-    html_text() %>% 
+  out <- url %>%
+    read_html() %>%
+    html_nodes(glue("#review-{i} .overall-rating")) %>%
+    html_text() %>%
     strip_whitespace_newlines()
-  
+
   if (length(out) == 0) {
     out <- NA_character_
   }
-  
+
   return(out)
 }
 
@@ -159,31 +163,31 @@ Same deal for content and sub-ratings except we use a different selector and con
 
 ```{r, echo=FALSE}
 scrape_sub_ratings <- function(url, i) {
-  out <- url %>% 
-    read_html() %>% 
-    html_nodes(glue("#review-{i} .palm-one-half")) %>% 
-    html_text() %>% 
-    str_c(collapse = " ") %>% 
+  out <- url %>%
+    read_html() %>%
+    html_nodes(glue("#review-{i} .palm-one-half")) %>%
+    html_text() %>%
+    str_c(collapse = " ") %>%
     strip_whitespace_newlines()
-  
+
   if (length(out) == 0) {
     out <- NA_character_
   }
-  
+
   return(out)
 }
 
 scrape_content <- function(url, i) {
-  out <- url %>% 
-    read_html() %>% 
-    html_nodes(glue(".cell-review:nth-child({i}) .color-text")) %>% 
-    html_text() %>% 
+  out <- url %>%
+    read_html() %>%
+    html_nodes(glue(".cell-review:nth-child({i}) .color-text")) %>%
+    html_text() %>%
     strip_whitespace_newlines()
-  
+
   if (length(out) == 0) {
     out <- NA_character_
   }
-  
+
   return(out)
 }
 ```
@@ -219,18 +223,18 @@ get_ratings_and_content <- function(url, review_range = 1:50,
                                     sleep = 1,
                                     write_out = TRUE, write_path = data_dir) {
   ifelse(sleep <= 1, 1, sleep)
-  
+
   out <- tibble()
-  page <- ifelse(str_detect(url, "page"), 
-                 qdapRegex::ex_between(url, "page=", "&")[[1]],
-                 NA_character_)
-  
+  page <- ifelse(str_detect(url, "page"),
+    qdapRegex::ex_between(url, "page=", "&")[[1]],
+    NA_character_
+  )
+
   for (i in review_range) {
     message(glue("Beginning scrape of page {page}, review {i}"))
-    this_rating <- try_scrape_rating(url, i)
     
+    this_rating <- try_scrape_rating(url, i)
     this_sub_ratings <- try_scrape_sub_ratings(url, i)
-
     this_cont <- try_scrape_content(url, i)
 
     this_review <- tibble(
@@ -239,29 +243,29 @@ get_ratings_and_content <- function(url, review_range = 1:50,
       content = this_cont,
       page_num = page,
       review_num = i
-    ) 
-    
+    )
+
     if (write_out == TRUE) {
       write_rds(this_review, path = glue(data_dir, "page_{page}_rating_{i}.rds"))
     }
-    
-    out <- out %>% 
+
+    out <- out %>%
       bind_rows(this_review)
-    
+
     Sys.sleep(runif(1, sleep - 0.5, sleep + 0.5))
   }
-  
-  out <- out %>% 
-    rowwise() %>% 
+
+  out <- out %>%
+    rowwise() %>%
     mutate(
-      rating_perc = ifelse(is.na(rating), NA_real_, 
-                           parse(text = rating) %>% eval()) 
-    ) %>% 
+      rating_perc = ifelse(is.na(rating), NA_real_,
+        parse(text = rating) %>% eval()
+      )
+    ) %>%
     select(page_num, review_num, rating, sub_ratings, rating_perc, content)
-  
+
   return(out)
 }
-
 ```
 
 
@@ -269,8 +273,10 @@ get_ratings_and_content <- function(url, review_range = 1:50,
 Let's give it a go with the first three reviews on the 10th page.
 
 ```{r sample_ratings_scraped, eval=TRUE, cache=TRUE}
-get_ratings_and_content(url = slack_full_urls[10], 
-                        review_range = 1:3) %>% 
+get_ratings_and_content(
+  url = slack_full_urls[10],
+  review_range = 1:3
+) %>%
   kable()
 ```
 
@@ -287,7 +293,7 @@ get_multiple_pages <- function(urls, review_range = 1:99, ...) {
   out <- tibble()
   for (u in urls) {
     this_page <- get_ratings_and_content(u, review_range = review_range, ...)
-    out <- out %>% 
+    out <- out %>%
       bind_rows(this_page)
   }
   return(out)
@@ -298,15 +304,16 @@ get_multiple_pages <- function(urls, review_range = 1:99, ...) {
 Let's scrape all of the pages!
 
 ```{r eval=FALSE}
-all_reviews_slack <- 
-  slack_full_urls %>% get_multiple_pages()
+all_reviews_slack <-
+  slack_full_urls %>%
+  get_multiple_pages()
 ```
 
 And now we can check out what we've got:
 
 ```{r}
-all_reviews_slack %>% 
-  head() %>% 
+all_reviews_slack %>%
+  head() %>%
   kable()
 ```
 
@@ -319,7 +326,7 @@ Since we saved all of these to their own files, we could also read them all in f
 make_files <- function(page_range) {
   a <- glue(data_dir, "page_{page_range}")
   out <- NULL
-  
+
   for (i in page_range) {
     b <- c(a %>% map_chr(str_c, "_rating_", i, ".rds", sep = ""))
     out <- c(out, b)
@@ -329,9 +336,9 @@ make_files <- function(page_range) {
 
 fls <- make_files(page_range = pages_want)
 
-all_reviews_slack <- 
-  map_dfr(fls, read_rds) %>% 
-  unnest(page_num) %>% 
+all_reviews_slack <-
+  map_dfr(fls, read_rds) %>%
+  unnest(page_num) %>%
   drop_na(content)
 ```
 
@@ -345,10 +352,10 @@ We've got data! Next a few quick cleaning steps. Our review content often repres
 
 ```{r}
 clean_content <- function(t) {
-  out <- t %>% 
-    t %>% 
-    str_replace_all("[ ]{2,}", "")   
-  
+  out <- t %>%
+    t() %>%
+    str_replace_all("[ ]{2,}", "")
+
   return(out)
 }
 ```
@@ -389,28 +396,27 @@ If something goes wrong and there are more subrating numbers than names or vice 
 
 ```{r}
 split_subratings <- function(inp) {
-  
   if (is.na(inp)) {
     out <- tibble(subrating_title = NA_character_, subrating_rating = NA_character_)
     return(out)
-  } 
-  
-  subrating_rating <- inp %>% 
-    str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>% 
-    map(str_replace_all, "[ ]+", "") %>% 
+  }
+
+  subrating_rating <- inp %>%
+    str_extract_all("([0-9 ]+\\/[0-9 ]+)") %>%
+    map(str_replace_all, "[ ]+", "") %>%
     as_vector()
   subrating_rating <- subrating_rating[subrating_rating != ""]
-  
-  subrating_title <- inp %>% 
-    str_split("([0-9\\. ]+\\/[0-9 ]+)") %>% 
+
+  subrating_title <- inp %>%
+    str_split("([0-9\\. ]+\\/[0-9 ]+)") %>%
     as_vector()
   subrating_title <- subrating_title[subrating_title != ""]
-  
+
   if (length(subrating_rating) != length(subrating_title)) {
     out <- tibble(subrating_title = "length_mismatch", subrating_rating = "length_mismatch")
     return(out)
   }
-  
+
   out <- tibble(subrating_title = subrating_title, subrating_rating = subrating_rating)
   return(out)
 }
@@ -421,34 +427,34 @@ split_subratings <- function(inp) {
 Now we can take our raw reviews and get each sub-rating into a nested dataframe inside a new `sub_ratings_split` column, which can then be unnested.
 
 ```{r, eval=FALSE}
-reviews_with_subratings <- all_reviews_slack %>% 
-  rowwise() %>% 
+reviews_with_subratings <- all_reviews_slack %>%
+  rowwise() %>%
   mutate(
     sub_ratings_split = split_subratings(sub_ratings) %>% list()
-  ) %>% 
-  select(-sub_ratings) %>% 
-  drop_na(content) %>% 
-  filter(!content %in% c("", " ")) %>% 
+  ) %>%
+  select(-sub_ratings) %>%
+  drop_na(content) %>%
+  filter(!content %in% c("", " ")) %>%
   mutate(
     page_num = as.numeric(page_num)
   )
 
-reviews_with_subratings_unnested <- 
-  reviews_with_subratings %>% 
-  unnest() %>% 
+reviews_with_subratings_unnested <-
+  reviews_with_subratings %>%
+  unnest() %>%
   rename(
     sub_rating_category = names,
     sub_rating_rating = nums
-  ) %>% 
-  arrange(page_num, review_num, sub_rating_category) 
+  ) %>%
+  arrange(page_num, review_num, sub_rating_category)
 ```
 
 
 Let's take a peek at our first 10 rows.
 
 ```{r}
-reviews_with_subratings_unnested %>% 
-  slice(1:10) %>% 
+reviews_with_subratings_unnested %>%
+  slice(1:10) %>%
   kable()
 ```
 
@@ -486,31 +492,31 @@ replacement_classifier <- tribble(
 replacement_extractor <- tribble(
   ~count, ~tag, ~entity,
   NA_character_, NA_character_, NA_character_
-) 
+)
 ```
 
 We'll use these replacements inside the unnesting helpers below. They're different because of slightly different particularities to the API response. [`dobtools::replace_x`](https://github.com/aedobbyn/dobtools/blob/master/R/replace_x.R) is just a generic "replace this NULL or 0L vector with whatever replacement I specify" function that is often useful for turning `NULL`s in API response data into `NA`s so that nested values can be unnested and tidied properly. (Incidentally, this was developed before the first version of the rOpenSci [`roomba`](https://github.com/ropenscilabs/roomba) package was released, which could have proved useful for tasks like this.)
 
 ```{r}
 unnest_result_classifier <- function(df) {
-  out <- df %>% 
-    rowwise() %>% 
+  out <- df %>%
+    rowwise() %>%
     mutate(
-      res = ifelse(length(res)[[1]] == 0 || is.na(res), replacement_classifier, res) 
-    ) %>% 
+      res = ifelse(length(res)[[1]] == 0 || is.na(res), replacement_classifier, res)
+    ) %>%
     unnest(res)
-  
+
   return(out)
 }
 
 unnest_result_extractor <- function(df) {
-  out <- df 
-  df$res <- df$res %>% 
+  out <- df
+  df$res <- df$res %>%
     map(dobtools::replace_x, replacement = replacement_extractor)
-  
-  out <- df %>% 
+
+  out <- df %>%
     unnest(res)
-  
+
   return(out)
 }
 
@@ -522,18 +528,19 @@ try_unnest_result_classifier <- safely(unnest_result_classifier)
 We wrap the usual `monkeylearn` package functions `monkey_classify` and `monkey_extract` in a trycatch using `purrr::safely` which returns a list of two things, one of which is always `NULL`; the result of the function and an error. If the function fails, we get the error and a `NULL` response and if it succeeds we get the response and a `NULL` error. We put this precaution in place because our `monkey_` function could throw an error for a few reasons; our request to MonkeyLearn could fail because either we or the server lose network connectivity, we receive a response we didn't expect and try to perform some operation on it that fails, or for some other unforeseen reason.
 
 ```{r}
-get_classification_batch <- 
+get_classification_batch <-
   safely(monkey_classify)
 
-get_extraction_batch <- 
+get_extraction_batch <-
   safely(monkey_extract)
 ```
 
 Let's test what happens something fails.
 
 ```{r}
-safe_return <- 
-  NULL %>% get_classification_batch()
+safe_return <-
+  NULL %>%
+  get_classification_batch()
 
 safe_return
 ```
@@ -550,7 +557,7 @@ We'll take the same tack of storing each of these results in its own file (this 
 
 
 ```{r}
-write_batches <- function(df, id, dir, 
+write_batches <- function(df, id, dir,
                           n_texts_per_batch,
                           start_row = 1,
                           unnest = FALSE,
@@ -562,65 +569,68 @@ write_batches <- function(df, id, dir,
   } else {
     stop("Not a recognized classifier or extractor id.")
   }
-  
+
   resp <- tibble()
   n_df_rows <- nrow(df)
-  
+
   batch_start_row <- start_row
   batch_end_row <- batch_start_row + n_texts_per_batch
-  
+
   error_log <- ""
-  
-  while(batch_start_row <= n_df_rows) {
-    
+
+  while (batch_start_row <= n_df_rows) {
     if (type_of_problem == "classification") {
       this_batch_nested <- get_classification_batch(df[batch_start_row:batch_end_row, ],
-                                     col = content,
-                                     classifier_id = id, 
-                                     unnest = unnest)
-      this_batch <- this_batch_nested$result %>% 
+        col = content,
+        classifier_id = id,
+        unnest = unnest
+      )
+      this_batch <- this_batch_nested$result %>%
         try_unnest_result_classifier()
-      
     } else if (type_of_problem == "extraction") {
       this_batch_nested <- get_extraction_batch(df[batch_start_row:batch_end_row, ],
-                                     col = content,
-                                     extactor_id = id, 
-                                     unnest = unnest)
-      
-      this_batch <- this_batch_nested$result %>% 
+        col = content,
+        extactor_id = id,
+        unnest = unnest
+      )
+
+      this_batch <- this_batch_nested$result %>%
         try_unnest_result_extractor()
-    } 
-    
+    }
+
     message(glue("Processed rows {batch_start_row} to {batch_end_row}."))
-    
+
     if (is.null(this_batch_nested$error) && is.null(this_batch$error)) {
       if (write_out == TRUE) {
-        write_csv(this_batch$result, 
-                  glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv"))
+        write_csv(
+          this_batch$result,
+          glue("{dir}/{type_of_problem}_batches_rows_{batch_start_row}_to_{batch_end_row}.csv")
+        )
       }
-    
-      resp <- resp %>% 
+
+      resp <- resp %>%
         bind_rows(this_batch$result)
-      
     } else {
-      error_log <- error_log %>% 
+      error_log <- error_log %>%
         c(glue("Error between rows {batch_start_row} and {batch_end_row}: 
                {c(this_batch_nested$error, this_batch$error)}"))
-      
+
       message(error_log)
     }
-    
+
     batch_start_row <- batch_start_row + n_texts_per_batch
     batch_end_row <- batch_start_row + n_texts_per_batch
-    
+
     if (batch_end_row > n_df_rows) {
       batch_end_row <- n_df_rows
     }
   }
-  
-  out <- list(resp = resp, 
-              error_log = error_log)
-  
+
+  out <- list(
+    resp = resp,
+    error_log = error_log
+  )
+
   return(out)
 }
 ```
@@ -629,16 +639,20 @@ write_batches <- function(df, id, dir,
 We can wrap `write_batches` in a couple helper functions with extraction- or classification-relevant results so that we don't need to specify them every time.
 
 ```{r}
-write_extraction_batches <- function(df, n_texts_per_batch = 200, 
+write_extraction_batches <- function(df, n_texts_per_batch = 200,
                                      dir = opinion_batches_dir, ...) {
-  write_batches(df, id = extractor_id, n_texts_per_batch = n_texts_per_batch,
-                dir = dir, ...)
+  write_batches(df,
+    id = extractor_id, n_texts_per_batch = n_texts_per_batch,
+    dir = dir, ...
+  )
 }
 
-write_classification_batches <- function(df, n_texts_per_batch = 200, 
+write_classification_batches <- function(df, n_texts_per_batch = 200,
                                          dir = topic_batches_dir, ...) {
-  write_batches(df, id = topic_id, n_texts_per_batch = n_texts_per_batch,
-                dir = dir, ...)
+  write_batches(df,
+    id = topic_id, n_texts_per_batch = n_texts_per_batch,
+    dir = dir, ...
+  )
 }
 ```
 
@@ -646,8 +660,8 @@ write_classification_batches <- function(df, n_texts_per_batch = 200,
 For example:
 
 ```{r, eval=FALSE}
-reviews_with_subratings_nested[123, ] %>% 
-  write_extraction_batches(n_texts_per_batch = 1 , write_out = FALSE) %>% 
+reviews_with_subratings_nested[123, ] %>%
+  write_extraction_batches(n_texts_per_batch = 1, write_out = FALSE) %>%
   write_classification_batches(n_texts_per_batch = 1, write_out = FALSE)
 ```
 
@@ -657,17 +671,18 @@ After we write all the results to their individual files, we'll want an easy way
 
 ```{r}
 gather_batches <- function(dir, end_row) {
-  
   fls <- fs::dir_ls(dir)
-  
-  list_o_batches <- 
-    map(fls, 
-        read_csv)
-  
-  out <- list_o_batches %>% 
+
+  list_o_batches <-
+    map(
+      fls,
+      read_csv
+    )
+
+  out <- list_o_batches %>%
     modify_depth(2, as.character) %>%
     bind_rows()
-  
+
   return(out)
 }
 ```
@@ -679,21 +694,21 @@ Cool, now we've set up everything we need to process our data and reconstitute t
 
 ```{r, eval=FALSE}
 # Write opinion units
-reviews_with_subratings_nested %>% 
+reviews_with_subratings_nested %>%
   write_extraction_batches()
 
 # Gather opinion units
-opinion_batches_extracted <- 
-  gather_batches(dir = opinion_batches_dir) %>% 
+opinion_batches_extracted <-
+  gather_batches(dir = opinion_batches_dir) %>%
   rename(probability_unit = probability)
 
 # Classify opinion units
-opinion_batches_extracted %>% 
+opinion_batches_extracted %>%
   write_classification_batches()
 
 # Gather classifications
-dat <- 
-  gather_batches(dir = topic_batches_dir) %>% 
+dat <-
+  gather_batches(dir = topic_batches_dir) %>%
   rename(probability_sentiment = probability)
 ```
 

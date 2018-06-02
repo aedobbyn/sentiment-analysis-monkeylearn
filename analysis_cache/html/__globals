@@ -1,4 +1,4 @@
-unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext
+unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext	pal	wes_palette
 source_in	all_reviews_slack	read_csv	here	reviews_with_subratings_nested	reviews_with_subratings_unnested	data_dir	glue	dat	read_rds
 unnamed-chunk-2	dat	%>%	slice
 unnamed-chunk-3	dat	%>%	mutate	str_c	review_num	page_num	uuids	arrange	nest	doc_identifier	nrow	.	row_number	select	data	left_join
@@ -6,39 +6,40 @@ unnamed-chunk-4	dat	sentiment	%>%	factor	levels
 numerise_sentiment	dat	%>%	rowwise	mutate	switch	sentiment	ungroup
 unnamed-chunk-5	dat	category	%>%	factor	levels
 unnamed-chunk-6	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
-unnamed-chunk-7	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total	ggplot	geom_bar	aes	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_bw
-unnamed-chunk-8	sentiment_by_category	dat_clean	%>%	group_by	category	summarise	mean	sentiment_num	arrange	desc	mean_sentiment	kable
-unnamed-chunk-9	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	theme_bw	theme	element_text	ggtitle	labs
-unnamed-chunk-10	category_freq	dat_clean	%>%	group_by	category	count	rename	n	ggplot	geom_bar	aes	fct_reorder	n_opinion_units	theme_bw	theme	element_text	ggtitle	labs
-unnamed-chunk-11	sentiment_by_category_weighted	sentiment_by_category	%>%	left_join	category_freq	mutate	mean_sentiment	n_opinion_units	arrange	desc	weighted_sentiment	head	kable
-unnamed-chunk-12	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	theme_bw	theme	element_text	ggtitle	labs
-unnamed-chunk-13	ratings_by_sentiment	dat_clean	%>%	group_by	sentiment	summarise	mean	rating_perc	as.numeric
-unnamed-chunk-14	ggplot	dat_clean	geom_jitter	aes	sentiment_num	as.numeric	rating_perc	geom_smooth
-unnamed-chunk-15	ggplot	ratings_by_sentiment	geom_bar	aes	sentiment	mean_rating	coord_cartesian	c
-unnamed-chunk-16	subrated_dat	dat_clean	%>%	unnest	sub_ratings_split	mutate	subrating_rating	as.numeric	select	doc_uuid	subrating_title	sentiment	sentiment_num	rating_perc	opinion_unit
-unnamed-chunk-17	parsed_subratings	reviews_with_subratings_unnested	%>%	rowwise	mutate	ifelse	is.na	sub_rating_rating	parse	eval	parsed_subratings_summary	drop_na	subrating_num	sub_rating_category	group_by	summarise	mean	cap_df	kable
-unnamed-chunk-18	parsed_subratings_summary	alias	c	%>%	left_join	sentiment_by_category
-unnamed-chunk-19	dat_tokenized	dat_clean	%>%	nest	content	doc_uuid	unnest_tokens	word	anti_join	stop_words	find_nums	filter	contains_num
-unnamed-chunk-20	sentiments	%>%	filter	word
+unnamed-chunk-7	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total
+unnamed-chunk-8	ggplot	sentiment_breakdown	geom_bar	aes	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_bw	scale_fill_manual	pal
+unnamed-chunk-9	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	factor	sentiment_valence	theme_bw	theme	element_text	ggtitle	labs	scale_fill_manual	pal
+unnamed-chunk-10	category_freq	dat_clean	%>%	group_by	category	count	rename	n	left_join	sentiment_by_category
+unnamed-chunk-11	ggplot	category_freq	geom_bar	aes	fct_reorder	category	n_opinion_units	sentiment_valence	theme_bw	theme	element_text	ggtitle	labs	scale_fill_manual	pal
+unnamed-chunk-12	sentiment_by_category_weighted	category_freq	%>%	mutate	mean_sentiment	n_opinion_units	arrange	desc	weighted_sentiment	head	kable
+unnamed-chunk-13	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	factor	sentiment_valence	theme_bw	theme	element_text	ggtitle	labs	scale_fill_manual	pal
+unnamed-chunk-14	ratings_by_sentiment	dat_clean	%>%	group_by	sentiment	summarise	mean	rating_perc	as.numeric
+unnamed-chunk-15	ggplot	dat_clean	geom_jitter	aes	sentiment_num	as.numeric	rating_perc	geom_smooth
+unnamed-chunk-16	ggplot	ratings_by_sentiment	geom_bar	aes	sentiment	mean_rating	coord_cartesian	c
+unnamed-chunk-17	subrated_dat	dat_clean	%>%	unnest	sub_ratings_split	mutate	subrating_rating	as.numeric	select	doc_uuid	subrating_title	sentiment	sentiment_num	rating_perc	opinion_unit
+unnamed-chunk-18	parsed_subratings	reviews_with_subratings_unnested	%>%	rowwise	mutate	ifelse	is.na	sub_rating_rating	parse	eval	parsed_subratings_summary	drop_na	subrating_num	sub_rating_category	group_by	summarise	mean	cap_df	kable
+unnamed-chunk-19	parsed_subratings_summary	alias	c	%>%	left_join	sentiment_by_category
+unnamed-chunk-20	dat_tokenized	dat_clean	%>%	nest	content	doc_uuid	unnest_tokens	word	anti_join	stop_words	find_nums	filter	contains_num
 unnamed-chunk-21	sentiments	%>%	filter	word
-unnamed-chunk-22	dat_tokenized	%>%	select	is_num	contains_num	left_join	sentiments	rename	sentiment	score
-unnamed-chunk-23	dat_tokenized_unnested	dat_tokenized	%>%	unnest
-unnamed-chunk-24	lm	dat_tokenized_unnested	%>%	drop_na	sentiment_num	score_sentiment	summary	tidy
-unnamed-chunk-25	assign_number	length	l	%in%	letters	n	which	try_assign_number	possibly
-unnamed-chunk-26	dat_tokenized_first_letter	dat_tokenized	%>%	rowwise	mutate	substr	word	try_assign_number	first_letter
-unnamed-chunk-27	ggplot	dat_tokenized_first_letter	geom_smooth	aes	first_letter_num	score_sentiment	geom_hline	mean	labs	ggtitle	theme_bw
-unnamed-chunk-28	lm	dat_tokenized_first_letter	%>%	drop_na	first_letter_num	score_sentiment	summary	tidy
-unnamed-chunk-29	replace_y	is.null	x	length	replacement
-unnamed-chunk-30	category_reg	dat_clean	category	which	%>%	tolower	unique	str_c
-unnamed-chunk-31	search_for	dat_clean	content	word_capped	simple_cap	word	q_col	enquo	col	look_for	ifelse	append_the	glue	out	df	%>%	filter	str_detect	distinct	rowwise	mutate	str_extract	str_replace_all	str_extract_all	phrase	category_reg	replace_y	as_vector	unique	str_c	return
-unnamed-chunk-32	search_for	%>%	replace_na_df	head	kable
-unnamed-chunk-33	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	kable
+unnamed-chunk-22	sentiments	%>%	filter	word
+unnamed-chunk-23	dat_tokenized	%>%	select	is_num	contains_num	left_join	sentiments	rename	sentiment	score
+unnamed-chunk-24	dat_tokenized_unnested	dat_tokenized	%>%	unnest
+unnamed-chunk-25	lm	dat_tokenized_unnested	%>%	drop_na	sentiment_num	score_sentiment	summary	tidy	kable
+unnamed-chunk-26	assign_number	length	l	%in%	letters	n	which	try_assign_number	possibly
+unnamed-chunk-27	dat_tokenized_first_letter	dat_tokenized	%>%	rowwise	mutate	substr	word	try_assign_number	first_letter
+unnamed-chunk-28	ggplot	dat_tokenized_first_letter	geom_smooth	aes	first_letter_num	score_sentiment	geom_hline	mean	labs	ggtitle	theme_bw	scale_fill_manual	pal
+unnamed-chunk-29	lm	dat_tokenized_first_letter	%>%	drop_na	first_letter_num	score_sentiment	summary	tidy	kable
+unnamed-chunk-30	replace_y	is.null	x	length	replacement
+unnamed-chunk-31	category_reg	dat_clean	category	which	%>%	tolower	unique	str_c
+unnamed-chunk-32	search_for	dat_clean	content	word_capped	simple_cap	word	q_col	enquo	col	look_for	ifelse	append_the	glue	out	df	%>%	filter	str_detect	distinct	rowwise	mutate	str_extract	str_replace_all	str_extract_all	phrase	category_reg	replace_y	as_vector	unique	str_c	return
+unnamed-chunk-33	search_for	%>%	replace_na_df	head	kable
 unnamed-chunk-34	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	kable
-unnamed-chunk-35	dat_tokenized_counts	dat_tokenized	%>%	add_count	word	rename	n	group_by	doc_uuid	ungroup
-unnamed-chunk-36	dat_tokenized_tfidf	dat_tokenized_counts	%>%	bind_tf_idf	word	doc_uuid	n_words_this_doc
-unnamed-chunk-37	category_tfidf	dat_tokenized_unnested	%>%	group_by	category	add_count	word	rename	n	ungroup	bind_tf_idf	n_words_this_category	select	tf_idf	opinion_unit	sentiment	category_tfidf_maxes	unnest	filter	max	distinct	arrange	cap_df	kable
+unnamed-chunk-35	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	kable
+unnamed-chunk-36	category_tfidf	dat_tokenized_unnested	%>%	group_by	category	add_count	word	rename	n	ungroup	bind_tf_idf	n_words_this_category	select	tf_idf	opinion_unit	sentiment
+unnamed-chunk-37	category_tfidf_maxes	category_tfidf	%>%	unnest	group_by	category	filter	tf_idf	max	select	word	sentiment	distinct	arrange	cap_df	kable
 unnamed-chunk-38	sentiment_tfidf	dat_tokenized_unnested	%>%	group_by	sentiment	add_count	word	rename	n	ungroup	bind_tf_idf	n_words_this_sentiment	select	tf_idf	opinion_unit	category	sentiment_tfidf_maxes	unnest	filter	max	distinct	arrange	cap_df	kable
 unnamed-chunk-39	problem_categories	dat_clean	%>%	filter	category	%in%	c	sentiment
 unnamed-chunk-40	pqr_complaints	problem_categories	%>%	mutate	row_number	unnest_tokens	word	content	filter	category	anti_join	stop_words	count
 unnamed-chunk-41	pqr_complaints	%>%	filter	word	%in%	c
 unnamed-chunk-42	dat_tokenized	%>%	filter	word	%in%	c	group_by	count
+sentiment_by_category	sentiment_by_category	dat_clean	%>%	group_by	category	summarise	mean	sentiment_num	arrange	desc	mean_sentiment	sentiment_by_category_summary	tibble	names	summary	bad_sentiment_upper_bound	filter	name	pull	value	good_sentiment_lower_bound	mutate	case_when	kable

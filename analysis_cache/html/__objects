@@ -1,4 +1,4 @@
-unnamed-chunk-1	.Random.seed
+unnamed-chunk-1	pal
 source_in	all_reviews_slack	dat	data_dir	reviews_with_subratings_nested	reviews_with_subratings_unnested
 unnamed-chunk-2	
 unnamed-chunk-3	dat	uuids
@@ -7,38 +7,39 @@ numerise_sentiment	dat
 unnamed-chunk-5	
 unnamed-chunk-6	dat_clean	probability_cutoff
 unnamed-chunk-7	sentiment_breakdown
-unnamed-chunk-8	sentiment_by_category
+unnamed-chunk-8	
 unnamed-chunk-9	
 unnamed-chunk-10	category_freq
-unnamed-chunk-11	sentiment_by_category_weighted
-unnamed-chunk-12	
-unnamed-chunk-13	ratings_by_sentiment
-unnamed-chunk-14	
+unnamed-chunk-11	
+unnamed-chunk-12	sentiment_by_category_weighted
+unnamed-chunk-13	
+unnamed-chunk-14	ratings_by_sentiment
 unnamed-chunk-15	
-unnamed-chunk-16	subrated_dat
-unnamed-chunk-17	parsed_subratings	parsed_subratings_summary
-unnamed-chunk-18	parsed_subratings_summary
-unnamed-chunk-19	dat_tokenized
-unnamed-chunk-20	
+unnamed-chunk-16	
+unnamed-chunk-17	subrated_dat
+unnamed-chunk-18	parsed_subratings	parsed_subratings_summary
+unnamed-chunk-19	parsed_subratings_summary
+unnamed-chunk-20	dat_tokenized
 unnamed-chunk-21	
-unnamed-chunk-22	dat_tokenized
-unnamed-chunk-23	dat_tokenized_unnested
-unnamed-chunk-24	
-unnamed-chunk-25	assign_number	try_assign_number
-unnamed-chunk-26	dat_tokenized_first_letter
-unnamed-chunk-27	
+unnamed-chunk-22	
+unnamed-chunk-23	dat_tokenized
+unnamed-chunk-24	dat_tokenized_unnested
+unnamed-chunk-25	
+unnamed-chunk-26	assign_number	try_assign_number
+unnamed-chunk-27	dat_tokenized_first_letter
 unnamed-chunk-28	
-unnamed-chunk-29	replace_y
-unnamed-chunk-30	category_reg
-unnamed-chunk-31	search_for
-unnamed-chunk-32	
+unnamed-chunk-29	
+unnamed-chunk-30	replace_y
+unnamed-chunk-31	category_reg
+unnamed-chunk-32	search_for
 unnamed-chunk-33	
 unnamed-chunk-34	
-unnamed-chunk-35	dat_tokenized_counts
-unnamed-chunk-36	dat_tokenized_tfidf
-unnamed-chunk-37	category_tfidf	category_tfidf_maxes
+unnamed-chunk-35	
+unnamed-chunk-36	category_tfidf
+unnamed-chunk-37	category_tfidf_maxes
 unnamed-chunk-38	sentiment_tfidf	sentiment_tfidf_maxes
 unnamed-chunk-39	problem_categories
 unnamed-chunk-40	pqr_complaints
 unnamed-chunk-41	
 unnamed-chunk-42	
+sentiment_by_category	bad_sentiment_upper_bound	good_sentiment_lower_bound	sentiment_by_category	sentiment_by_category_summary
