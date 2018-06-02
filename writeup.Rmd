@@ -1201,7 +1201,7 @@ dat_tokenized_tfidf <-
   bind_tf_idf(word, doc_uuid, n_words_this_doc)
 ```
 
-A question we might be interested in is: which words are most distinctive to opinion units tagged with each category?
+A question we might be interested in is: which words are most distinctive to opinion units tagged with each category? For this purpose we can treat each category as its own document (rather than each review as its own document).
 
 ```{r}
 category_tfidf <-
