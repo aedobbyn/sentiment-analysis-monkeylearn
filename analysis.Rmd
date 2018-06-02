@@ -177,17 +177,35 @@ sentiment_by_category <-
     mean_sentiment = mean(sentiment_num)
   ) %>%
   arrange(desc(mean_sentiment))
+```
+
+`r sentiment_by_category[which(sentiment_by_category$mean_sentiment == min(sentiment_by_category$mean_sentiment)), ]$category` gets the lowest average sentiment, whereas `r sentiment_by_category[which(sentiment_by_category$mean_sentiment == max(sentiment_by_category$mean_sentiment)), ]$category` gets the highest.
+
+Next I want to split these mean sentiment ratings into three equal parts and assign those parts valences that describe the mean sentiment for that category. We'll find the tertiles (a word I thought I made up but turns out it's a thing) of the mean sentiments so we can divid them three groups as they relate to each other.
+
+```{r}
+tertiles <- c(
+    sentiment_by_category$mean_sentiment %>% quantile(1/3),
+    sentiment_by_category$mean_sentiment %>% quantile(2/3)
+    )
 
 sentiment_by_category_summary <-
-  tibble(name = names(summary(sentiment_by_category$mean_sentiment)), 
-         value = summary(sentiment_by_category$mean_sentiment)) 
+  tibble(name = names(tertiles), 
+         value = tertiles) 
 
+sentiment_by_category_summary %>% 
+  kable()
+```
+
+We'll use these tertiles as the bounds for assigning valences.
+
+```{r}
 bad_sentiment_upper_bound <- 
   sentiment_by_category_summary %>% 
-  filter(name == "1st Qu.") %>% pull(value)
+  filter(name == sentiment_by_category_summary$name[1]) %>% pull(value)
 good_sentiment_lower_bound <- 
   sentiment_by_category_summary %>% 
-  filter(name == "3rd Qu.") %>% pull(value)
+  filter(name == sentiment_by_category_summary$name[2]) %>% pull(value)
 
 sentiment_by_category <-
   sentiment_by_category %>% 
@@ -197,23 +215,28 @@ sentiment_by_category <-
       mean_sentiment >= bad_sentiment_upper_bound & 
         mean_sentiment <= good_sentiment_lower_bound ~ "Meh",
       mean_sentiment > good_sentiment_lower_bound ~ "Good"
-    )
+    ) %>% factor()
   )
 
 sentiment_by_category %>%
   kable()
+
+sentiment_valence_order <- c("Good", "Meh", "Bad")
+
+sentiment_by_category$sentiment_valence <-
+  sentiment_by_category$sentiment_valence %>% fct_relevel(sentiment_valence_order)
 ```
 
-`r sentiment_by_category[which(sentiment_by_category$mean_sentiment == min(sentiment_by_category$mean_sentiment)), ]$category` gets the lowest average sentiment, whereas `r sentiment_by_category[which(sentiment_by_category$mean_sentiment == max(sentiment_by_category$mean_sentiment)), ]$category` gets the highest.
+And now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories by arranging them by different variables.
 
 ```{r, echo=FALSE}
 ggplot(sentiment_by_category) +
-  geom_bar(aes(fct_reorder(category, mean_sentiment), mean_sentiment, fill = factor(sentiment_valence)), stat = "identity") +
+  geom_bar(aes(fct_reorder(category, mean_sentiment), mean_sentiment, fill = sentiment_valence), stat = "identity") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Sentiment by Category") +
-  labs(x = "Category", y = "Sentiment") +
-  scale_fill_manual(values = pal)
+  labs(x = "Category", y = "Sentiment", fill = "Sentiment Valence") +
+  scale_fill_manual(values = pal) +
+  coord_flip()
 ```
 
 This plot is useful, but it doesn't tell us anything about how often people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
@@ -228,7 +251,7 @@ category_freq <-
   rename(
     n_opinion_units = n
   ) %>% 
-  left_join(sentiment_by_category)
+  left_join(sentiment_by_category) 
 ```
 
 ```{r, echo=FALSE}
@@ -236,10 +259,10 @@ ggplot(category_freq) +
   geom_bar(aes(fct_reorder(category, n_opinion_units), n_opinion_units,
                fill = sentiment_valence), stat = "identity") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Category Mentions") +
-  labs(x = "Category", y = "N") +
-  scale_fill_manual(values = pal)
+  labs(x = "Category", y = "N", fill = "Sentiment Valence") +
+  scale_fill_manual(values = pal) +
+  coord_flip()
 ```
 
 
@@ -264,10 +287,10 @@ ggplot(sentiment_by_category_weighted) +
   geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment,
                fill = factor(sentiment_valence)), stat = "identity") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Category Sentiment, Weighted") +
-  labs(x = "Category", y = "Weighted Sentiment") +
-  scale_fill_manual(values = pal)
+  labs(x = "Category", y = "Weighted Sentiment", fill = "Sentiment Valence") +
+  scale_fill_manual(values = pal) +
+  coord_flip()
 ```
 
 
@@ -464,8 +487,8 @@ ggplot(dat_tokenized_first_letter) +
   #             colour = "dark green", method = "lm",
   #             linetype = "dashed", se = FALSE) +
   geom_hline(data = dat_tokenized_first_letter, yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
-  labs(x = "First letter", y = "Sentiment", subtitle = "Sentiment by AFINN scale") +
   ggtitle("Relationship between a word's first letter and its sentiment") +
+  labs(x = "First letter", y = "Sentiment", subtitle = "as measured by AFINN scale") +
   theme_bw() +
   scale_fill_manual(values = pal)
 ```

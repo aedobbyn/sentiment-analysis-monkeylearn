@@ -199,17 +199,56 @@ sentiment_by_category <-
     mean_sentiment = mean(sentiment_num)
   ) %>%
   arrange(desc(mean_sentiment))
+```
+
+Performance-Quality-Reliability gets the lowest average sentiment, whereas General gets the highest.
+
+Next I want to split these mean sentiment ratings into three equal parts and assign those parts valences that describe the mean sentiment for that category. We'll find the tertiles (a word I thought I made up but turns out it's a thing) of the mean sentiments so we can divid them three groups as they relate to each other.
+
+
+```r
+tertiles <- c(
+    sentiment_by_category$mean_sentiment %>% quantile(1/3),
+    sentiment_by_category$mean_sentiment %>% quantile(2/3)
+    )
 
 sentiment_by_category_summary <-
-  tibble(name = names(summary(sentiment_by_category$mean_sentiment)), 
-         value = summary(sentiment_by_category$mean_sentiment)) 
+  tibble(name = names(tertiles), 
+         value = tertiles) 
 
+sentiment_by_category_summary %>% 
+  kable()
+```
+
+<table>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> name </th>
+   <th style="text-align:right;"> value </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> 33.33333% </td>
+   <td style="text-align:right;"> 0.2512253 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> 66.66667% </td>
+   <td style="text-align:right;"> 0.7757711 </td>
+  </tr>
+</tbody>
+</table>
+
+We'll use these tertiles as the bounds for assigning valences.
+
+
+```r
 bad_sentiment_upper_bound <- 
   sentiment_by_category_summary %>% 
-  filter(name == "1st Qu.") %>% pull(value)
+  filter(name == sentiment_by_category_summary$name[1]) %>% pull(value)
 good_sentiment_lower_bound <- 
   sentiment_by_category_summary %>% 
-  filter(name == "3rd Qu.") %>% pull(value)
+  filter(name == sentiment_by_category_summary$name[2]) %>% pull(value)
 
 sentiment_by_category <-
   sentiment_by_category %>% 
@@ -219,7 +258,7 @@ sentiment_by_category <-
       mean_sentiment >= bad_sentiment_upper_bound & 
         mean_sentiment <= good_sentiment_lower_bound ~ "Meh",
       mean_sentiment > good_sentiment_lower_bound ~ "Good"
-    )
+    ) %>% factor()
   )
 
 sentiment_by_category %>%
@@ -263,12 +302,12 @@ sentiment_by_category %>%
   <tr>
    <td style="text-align:left;"> Feedback-Recommendation </td>
    <td style="text-align:right;"> 0.8484848 </td>
-   <td style="text-align:left;"> Meh </td>
+   <td style="text-align:left;"> Good </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Attachments-Sharing </td>
    <td style="text-align:right;"> 0.8171091 </td>
-   <td style="text-align:left;"> Meh </td>
+   <td style="text-align:left;"> Good </td>
   </tr>
   <tr>
    <td style="text-align:left;"> UI-UX </td>
@@ -308,12 +347,12 @@ sentiment_by_category %>%
   <tr>
    <td style="text-align:left;"> Messages </td>
    <td style="text-align:right;"> 0.1895735 </td>
-   <td style="text-align:left;"> Meh </td>
+   <td style="text-align:left;"> Bad </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Calls </td>
    <td style="text-align:right;"> 0.1126761 </td>
-   <td style="text-align:left;"> Meh </td>
+   <td style="text-align:left;"> Bad </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Other </td>
@@ -343,9 +382,16 @@ sentiment_by_category %>%
 </tbody>
 </table>
 
-Performance-Quality-Reliability gets the lowest average sentiment, whereas General gets the highest.
+```r
+sentiment_valence_order <- c("Good", "Meh", "Bad")
 
-![](analysis_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
+sentiment_by_category$sentiment_valence <-
+  sentiment_by_category$sentiment_valence %>% fct_relevel(sentiment_valence_order)
+```
+
+And now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories by arranging them by different variables.
+
+![](analysis_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
 
 This plot is useful, but it doesn't tell us anything about how often people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
@@ -360,10 +406,10 @@ category_freq <-
   rename(
     n_opinion_units = n
   ) %>% 
-  left_join(sentiment_by_category)
+  left_join(sentiment_by_category) 
 ```
 
-![](analysis_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
 
 
 Now we can weight the category sentiment by the number of times it occurs in an opinion unit.
@@ -439,7 +485,7 @@ sentiment_by_category_weighted %>%
 </table>
 
 
-![](analysis_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
 
 What about ratings? How do those line up with sentiments we assigned?
@@ -535,7 +581,7 @@ parsed_subratings_summary %>%
 ```
 ## # A tibble: 4 x 5
 ##   sub_rating_catego… mean_subrating alias  mean_sentiment sentiment_valen…
-##   <chr>                       <dbl> <chr>           <dbl> <chr>           
+##   <chr>                       <dbl> <chr>           <dbl> <fct>           
 ## 1 Customer Support            0.888 Custo…          0.667 Meh             
 ## 2 Ease of Use                 0.928 Ease …          0.710 Meh             
 ## 3 Features & Functi…          0.913 Gener…          0.978 Good            
@@ -700,7 +746,7 @@ dat_tokenized_first_letter <-
 
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
-![](analysis_files/figure-html/unnamed-chunk-28-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-30-1.png)<!-- -->
 
 
 What about the statistical relationship?
