@@ -1,0 +1,689 @@
+---
+title: "MonkeyLearn Sentiment Analysis: Analysis"
+output:
+  html_document:
+  keep_md: true
+  toc: false
+theme: yeti
+github_document:
+  toc: false
+pdf_document:
+  keep_tex: true
+toc: false
+---
+  
+  MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/).
+
+What do people who use Slack think of it? What aspects of the product are the most beloved and despised (at least among people who take the time to write a review of the product)? These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
+
+**The Plan**
+
+Specifically, MonkeyLearn will handle extracting reviews into distinct opinion units and attaching topics and sentiments to those opinion units. Most of what we have to do is shunt data back and forth between our environment and MonkeyLearn's custom machine learning modules. 
+
+The approach here will be to first scrape and tidy reviews and their associated ratings. Next, we'll feed each of the reviews to MonkeyLearn in order to extract discrete opinion units from the text.  Finally, we'll use a custom-trained MonkeyLearn sentiment classifier to classify each opinion unit into its primary sentiment: Negative, Neutral, or Positive, as well as the category it fits into best (e.g., UI-UX, Pricing, Mobile, etc.).
+
+The opinion unit approach gives us some more fine-grained control over what we're assigning sentiment to, since there can be multiple sentiments in the same sentence. For instance, "I love Spring time but I hate the allergies that go along with it" would hopefully be broken into the units "I love Spring time" and "but I hate the allergies that go along with it" and assigned the sentiments Positive and Negative, respectively.
+
+Then we're left with a dataset of opinion units, each tagged with a sentiment as well as with one or many categories that we can sink our teeth into.
+
+
+### Scraping the Data
+
+First step is to collect all of the reviews of Slack that people have left on Capterra.
+
+We'll want to make sure that the website we're considering allows for scraping. We can consult the `robots.txt` file that typically lives at the top level of a website with the handy `robotstxt` package.
+
+```{r setup, echo=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+               cache = TRUE, autodep = TRUE,     
+               fig.width=12, fig.height=8,
+               cache.extra = list())
+
+options(knitr.table.format = 'html')
+```
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(rvest)
+library(monkeylearn)
+library(glue)
+library(knitr)
+library(dobtools)
+library(tidytext)
+```
+
+
+```{r source_in, echo=FALSE, message=FALSE}
+all_reviews_slack <- read_csv(here("data", "derived", "all_reviews_slack.csv"))
+reviews_with_subratings_nested <- read_csv(here("data", "derived", "reviews_with_subratings_nested.rds"))
+reviews_with_subratings_unnested <- read_csv(here("data", "derived", "capterra_slack_reviews_with_subratings_unnested.csv"))
+
+data_dir <- glue(here::here("data", "raw"), "/")
+
+# dat <- 
+#   read_csv(here("data", "derived", "dat.csv")) 
+
+dat <- 
+  read_rds(here("data", "derived", "dat.rds")) 
+```
+
+
+## Analysis
+
+We've got data! `r emo::ji("tada") ` Let's take a look at it. 
+
+```{r, dependson="source_in"}
+dat %>% 
+  slice(1:20) 
+```
+
+Since there are multiple rows per review, we'll want a unique identifier for each. Each `page_num, review_num` combination represents a unique review. We could hash these two values but since we have the benefit of knowing that the reviews happen in chronological order, it seems better to number them, starting with 1 for our oldest review.
+
+For good measure I also created a `doc_identifier` by smushing together the page and review number.
+
+```{r}
+dat <- dat %>%
+mutate(
+doc_identifier = str_c("r", review_num, "p", page_num, sep = "_")
+)
+
+uuids <- dat %>% 
+arrange(page_num, review_num) %>%
+nest(-doc_identifier) %>% 
+mutate(doc_uuid = nrow(.) - row_number() + 1) %>% 
+select(-data)
+
+dat <- dat %>% 
+left_join(uuids) 
+```
+
+
+There are only three possible sentiments for an opinion unit to have,
+
+```{r}
+dat$sentiment %>% factor() %>% levels()
+```
+
+so we can assign a number to each type of sentiment in order to be able to represent them on an ordinal scale. 
+
+
+```{r numerise_sentiment, dependson="source_in"}
+dat <- dat %>% 
+rowwise() %>% 
+mutate(
+sentiment_num = switch(sentiment, 
+"Negative" = -1,
+"Neutral" = 0,
+"Positive" = 1)
+) %>% 
+ungroup()
+```
+
+
+
+What about categories?
+
+```{r}
+dat$category %>% factor() %>% levels()
+```
+
+We can see there are some categories labeled "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly.
+
+```{r}
+probability_cutoff <- 0.55
+
+dat_clean <-
+dat %>% 
+filter(!is.na(probability_unit) & !is.na(probability_unit) & 
+category != "None" &
+probability_sentiment > probability_cutoff & probability_unit > probability_cutoff)
+```
+
+After cleaning, we've got `r length(unique(dat_clean$doc_uuid))` unique opinion units to work with, each with a single sentiment and multiple classifications.
+
+
+**Initial exploring**
+  
+  Now let's get the lay of the land by seeing what the breakdown of sentiments is overall.
+
+```{r}
+sentiment_breakdown <- 
+dat_clean %>% 
+group_by(sentiment) %>% 
+count() %>% 
+rename(by_sentiment = n) %>% 
+ungroup() %>% 
+mutate(total = sum(by_sentiment),
+sentiment_prop = by_sentiment/total)
+
+ggplot(sentiment_breakdown) +
+geom_bar(aes(sentiment, sentiment_prop, fill = sentiment), position = "dodge", stat = "identity") + 
+geom_text(aes(sentiment, sentiment_prop + 0.03, label = paste0(round(sentiment_prop*100, digits = 2), "%")),
+fontface = "italic", size = 3) +
+scale_y_continuous(labels = scales::percent) +
+ggtitle("Sentiment Breakdown, Overall") +
+labs(x = "Sentiment", y = "Percent", fill = "Sentiment") +
+theme_bw()
+```
+
+We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there `r emo::ji("laughing")`.)
+
+
+What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each category.
+
+
+```{r}
+sentiment_by_category <- 
+dat_clean %>% 
+group_by(category) %>% 
+summarise(
+mean_sentiment = mean(sentiment_num)
+) %>% 
+arrange(desc(mean_sentiment))
+
+sentiment_by_category %>% 
+kable()
+```
+
+`r sentiment_by_category[which(sentiment_by_category$mean_sentiment == min(sentiment_by_category$mean_sentiment)), ]$category` gets the lowest overall sentiment, whereas `r sentiment_by_category[which(sentiment_by_category$mean_sentiment == max(sentiment_by_category$mean_sentiment)), ]$category` gets the highest.
+
+```{r}
+ggplot(sentiment_by_category) +
+geom_bar(aes(fct_reorder(category, mean_sentiment), mean_sentiment), stat = "identity") + 
+theme_bw() +
+theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ggtitle("Sentiment by Category") +
+labs(x = "Category", y = "Sentiment")
+```
+
+
+Are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
+
+```{r}
+category_freq <- 
+dat_clean %>% 
+group_by(category) %>% 
+count(sort = TRUE) %>% 
+rename(
+n_opinion_units = n
+)
+
+ggplot(category_freq) +
+geom_bar(aes(fct_reorder(category, n_opinion_units), n_opinion_units), stat = "identity") +
+theme_bw() +
+theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ggtitle("Category Mentions") +
+labs(x = "Category", y = "N")
+```
+
+
+Now we can weight the category sentiment by the number of times it occurs in an opinion unit.
+
+```{r}
+sentiment_by_category_weighted <- 
+sentiment_by_category %>% 
+left_join(category_freq, by = "category") %>% 
+mutate(
+weighted_sentiment = mean_sentiment*n_opinion_units
+) %>% 
+arrange(desc(weighted_sentiment))
+
+sentiment_by_category_weighted %>% 
+head() %>% 
+kable()
+```
+
+
+```{r, echo=FALSE}
+ggplot(sentiment_by_category_weighted) +
+geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment), stat = "identity") +
+theme_bw() +
+theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ggtitle("Category Sentiment, Weighted") +
+labs(x = "Category", y = "Weighted Sentiment")
+```
+
+
+What about ratings? How do those line up with sentiments we assigned?
+
+```{r}
+ratings_by_sentiment <- 
+dat_clean %>% 
+group_by(sentiment) %>% 
+summarise(
+mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
+)
+```
+
+There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
+
+This indicates that despite critiques and a good chunk of negative opinion units, most overall reviews remain positive.
+
+```{r, include=FALSE}
+ggplot(dat_clean) +
+  geom_jitter(aes(sentiment_num, as.numeric(rating_perc))) +
+  geom_smooth(aes(sentiment_num, as.numeric(rating_perc)), method = "lm")
+```
+
+```{r, include=FALSE}
+ggplot(ratings_by_sentiment) +
+  geom_bar(aes(sentiment, mean_rating), stat = "identity") +
+  coord_cartesian(ylim = c(0.85, 1))
+```
+
+
+We can dig into sub_ratings
+
+```{r, include=FALSE}
+subrated_dat <- 
+  dat_clean %>% 
+  unnest(sub_ratings_split) %>% 
+  mutate(
+    subrating_rating = subrating_rating %>% as.numeric()
+  ) %>% 
+  select(doc_uuid, subrating_title, subrating_rating, sentiment, sentiment_num, rating_perc, opinion_unit)
+```
+
+```{r}
+parsed_subratings <-
+  reviews_with_subratings_unnested %>% 
+  rowwise() %>% 
+  mutate(subrating_num = 
+           ifelse(is.na(sub_rating_rating), NA, 
+                  parse(text = sub_rating_rating) %>% eval()) 
+  ) 
+
+parsed_subratings_summary <- 
+  parsed_subratings %>% 
+  drop_na(subrating_num, sub_rating_category) %>% 
+  group_by(sub_rating_category) %>%
+  summarise(
+    mean_subrating = mean(subrating_num)
+  )
+
+parsed_subratings_summary %>% 
+  dobtools::cap_df() %>% 
+  kable()
+```
+
+
+How do these sub-ratings match up with category ratings we calculated earlier?
+  
+  ```{r}
+parsed_subratings_summary$alias <- c("Customer Support", "Ease of Use", "General", "Pricing")
+
+parsed_subratings_summary %>% 
+  left_join(sentiment_by_category, 
+            by = c("alias" = "category"))
+```
+
+
+
+
+
+<br>
+  
+  
+  ### Down to the word level
+  
+  Now that we have classifications for each opinion units, we can see how the individual words in opinion units map to the sentiment and category classification they were assigned, and maybe gain some more granular insight about what people like and dislike about the product.
+
+The `tidytext` package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". My helper [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R) mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
+
+```{r}
+dat_tokenized <- 
+dat_clean %>% 
+nest(-content, -doc_uuid) %>% 
+unnest_tokens(word, content) %>% 
+anti_join(stop_words, "word") %>%
+dobtools::find_nums() %>% 
+filter(contains_num == FALSE)
+```
+
+The `tidytext` package also includes a `sentiments` dataset which we can join on our words to get a classification of the words' sentiment in three different lexicons as well as its score on a scale of -5 (negative) to 5 (positive). (`?tidytext::sentiments` for a full explanation of the dataset.) For example:
+  
+  ```{r}
+sentiments %>% filter(word == "yucky")
+```
+
+and 
+
+```{r}
+sentiments %>% filter(word == "yummy")
+```
+
+(Don't ask me why yummy is more positive than yucky is negative `r emo::ji("laughing")`.) Anyway, let's join this on our data set by "word".
+ 
+ 
+ ```{r}
+ dat_tokenized <-  
+   dat_tokenized %>% 
+   select(-is_num, -contains_num) %>%
+   left_join(tidytext::sentiments %>% 
+               rename(word_sentiment = sentiment,
+                      score_sentiment = score), 
+             by = "word")
+ ```
+ 
+ 
+ 
+ If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we can unnest our `dat_tokenized_tfidf` dataframe in place of doing any joining.
+ 
+ ```{r}
+ dat_tokenized_unnested <- 
+   dat_tokenized %>% 
+   unnest()
+ ```
+ 
+ 
+ 
+ Do the words that make up an opinion unit have a significant effect on the sentiment it's assigned by MonkeyLearn?
+ 
+ ```{r}
+ lm(data = dat_tokenized_unnested %>% drop_na(sentiment_num, score_sentiment), 
+ sentiment_num ~ score_sentiment) %>% 
+ summary() %>% 
+ tidy()
+ ```
+ 
+ Yes -- words with more positive sentiments tend to occur in more positive opinion units.
+ 
+ 
+ As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
+ 
+ We'll extract just the first letter of the word and assign it the number of the alphabet from 1 to 24.
+ 
+ ```{r}
+ assign_number <- function(l) {
+   if (length(l) == 0 || ! l %in% letters) {
+     n <- NA_integer_
+   } else {
+     n <- which(letters == l)
+     
+   }
+   n
+ }
+ 
+ try_assign_number <- possibly(assign_number, otherwise = NA_integer_)
+ ```
+ 
+ 
+ ```{r}
+ dat_tokenized_first_letter <- 
+   dat_tokenized %>% 
+   rowwise() %>% 
+   mutate(
+     first_letter = substr(word, 1, 1),
+     first_letter_num = try_assign_number(first_letter)
+   ) 
+ ```
+ 
+ And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
+ 
+ ```{r, echo=FALSE}
+ ggplot(dat_tokenized_first_letter) +
+ # geom_smooth(aes(first_letter_num, sentiment_num),
+ #             colour = "blue") +
+ geom_smooth(aes(first_letter_num, score_sentiment),
+ colour = "blue") +
+ # geom_smooth(aes(first_letter_num, score_sentiment),
+ #             colour = "dark green", method = "lm",
+ #             linetype = "dashed", se = FALSE) +
+ geom_hline(data = dat_tokenized_first_letter, yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
+ labs(x = "First letter", y = "Sentiment") +
+ ggtitle("Relationship between a word's first letter and its sentiment") +
+ theme_bw()
+ ```
+ 
+ 
+ What about the statistical relationship?
+ 
+ ```{r}
+ lm(data = dat_tokenized_first_letter %>% drop_na(first_letter_num, score_sentiment), 
+ first_letter_num ~ score_sentiment) %>% 
+ summary() %>% 
+ tidy()
+ ```
+ 
+ Not significant, as we might expect.
+ 
+ 
+ <br>
+ 
+ ```{r, echo=FALSE}
+ replace_y <- function (x, replacement = NA_character_) {
+ if (is.null(x) || length(x) == 0 || length(x[[1]]) == 0 || is.null(x[[1]])) {
+ replacement
+ }
+ else {
+ x
+ }
+ }
+ ```
+ 
+ We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for everything after `word` and up until the first period.
+ 
+ We might also want to pull out a category or categories if they exist in the phrase. To that end we'll make a regex for all of the categories MonkeyLearn has identified (except Other which seems uninteresting):
+   
+   ```{r}
+ category_reg <- 
+   dat_clean$category[-which(dat_clean$category == "Other")] %>%
+   tolower() %>% unique() %>% str_c(collapse = "|") 
+ ```
+ 
+ 
+ We can make something reusable like:
+   
+   ```{r}
+ search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE) {
+   word_capped <- 
+     dobtools::simple_cap(word)
+   
+   q_col = enquo(col)
+   
+   look_for <- ifelse(append_the == TRUE,
+                      glue("{word} the |{word_capped} the "),
+                      glue("{word} |{word_capped} "))
+   
+   out <- 
+     df %>% 
+     filter(
+       str_detect(!!q_col, look_for)
+     ) %>% 
+     distinct(!!q_col) %>% 
+     rowwise() %>% 
+     mutate(
+       phrase = str_extract(!!q_col, glue("(?<={look_for}).+$")) %>% 
+         str_replace_all("(?<=\\.).*", ""),
+       phrase_categories = str_extract_all(phrase, category_reg) %>% 
+         replace_y() %>% as_vector() %>% unique() %>% str_c(collapse = ", ")
+     ) 
+   
+   return(out)
+ }
+ ```
+ 
+ 
+ We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to.
+ 
+ ```{r}
+ search_for(word = "love", append_the = TRUE) %>% 
+   dobtools::replace_na_df() %>% 
+   head() %>% 
+   kable()
+ ```
+ 
+ By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
+ 
+ ```{r}
+ search_for(word = "use") %>% 
+ drop_na(phrase_categories) %>% 
+ dobtools::replace_na_df() %>% 
+ head() %>% 
+ kable()
+ ```
+ 
+ 
+ ```{r}
+ search_for(word = "want") %>% 
+ drop_na(phrase_categories) %>% 
+ dobtools::replace_na_df() %>% 
+ head() %>% 
+ kable()
+ ```
+ 
+ 
+ 
+ 
+ #### TF-IDF
+ 
+ Term frequency inverse document frequency is a measure of how often a word appears in a given document (here, a review) as opposed to overall, in all of the documents. That can give us a sense of how important it is to a given document as compared to a baseline of all words used in the entire corpus.
+ 
+ What we can learn from TF-IDF is, for instance, what words do people often use in reviews when they're talking about a specific aspect of the product that they tend to use less frequently when talking about other aspects of the product?
+   
+   To get every word's TF-IDF, we need to get within-document counts of each word. We'll also count how often the word is used in all reviews.
+ 
+ ```{r}
+ dat_tokenized_counts <- 
+   dat_tokenized %>% 
+   add_count(word) %>% 
+   rename(
+     n_words_total = n
+   ) %>% 
+   group_by(doc_uuid) %>% 
+   add_count(word) %>% 
+   rename(
+     n_words_this_doc = n
+   )  %>% 
+   ungroup() 
+ ```
+ 
+ 
+ Now we can ask `tidytext` to do a mutate and attach the `tf_idf` of each word to our dataframe.
+ 
+ ```{r}
+ dat_tokenized_tfidf <- 
+   dat_tokenized_counts %>% 
+   bind_tf_idf(word, doc_uuid, n_words_this_doc)
+ ```
+ 
+ A question we might be interested in is: which words are most distinctive to opinion units tagged with each category? For this purpose we can treat each category as its own document (rather than each review as its own document).
+ 
+ ```{r}
+ category_tfidf <-
+   dat_tokenized_unnested %>% 
+   group_by(category) %>% 
+   add_count(word) %>% 
+   rename(
+     n_words_this_category = n
+   )  %>% 
+   ungroup() %>% 
+   bind_tf_idf(word, category, n_words_this_category) %>% 
+   select(word, category, tf_idf, opinion_unit, sentiment)
+ 
+ category_tfidf_maxes <- 
+   category_tfidf %>% 
+   unnest() %>% 
+   group_by(category) %>% 
+   filter(tf_idf == max(tf_idf)) %>% 
+   select(word, sentiment, category, tf_idf) %>% 
+   distinct(word, category, tf_idf) %>% 
+   arrange(category, word) 
+ 
+ category_tfidf_maxes %>% 
+   dobtools::cap_df() %>% 
+   kable()
+ ```
+ 
+ ```{r, include=FALSE}
+ sentiment_tfidf <-
+   dat_tokenized_unnested %>% 
+   group_by(sentiment) %>% 
+   add_count(word) %>% 
+   rename(
+     n_words_this_sentiment = n
+   )  %>% 
+   ungroup() %>% 
+   bind_tf_idf(word, sentiment, n_words_this_sentiment) %>% 
+   select(word, sentiment, tf_idf, opinion_unit, category)
+ 
+ sentiment_tfidf_maxes <- 
+   sentiment_tfidf %>% 
+   unnest() %>% 
+   group_by(sentiment) %>% 
+   filter(tf_idf == max(tf_idf)) %>% 
+   # filter(tf_idf > mean(tf_idf) + sd(tf_idf)*2) %>% 
+   select(word, sentiment, category, tf_idf) %>% 
+   distinct(word, sentiment, tf_idf) %>% 
+   arrange(sentiment, word) 
+ 
+ sentiment_tfidf_maxes %>% 
+   dobtools::cap_df() %>% 
+   kable()
+ ```
+ 
+ 
+ 
+ 
+ #### Going Negative
+ 
+ Let's focus on the places where Slack might want to improve. Pricing is more self-explanatory, so I'll focus on Performance-Quality-Reliability and Notifications.
+ 
+ 
+ ```{r}
+ problem_categories <- 
+   dat_clean %>% 
+   filter(category %in% c("Performance-Quality-Reliability", "Notifications") &
+            sentiment == "Negative")
+ ```
+ 
+ 
+ ```{r}
+ pqr_complaints <- 
+   problem_categories %>% 
+   mutate(review_num = row_number()) %>% 
+   unnest_tokens(word, content) %>% 
+   filter(category == "Performance-Quality-Reliability") %>% 
+   anti_join(stop_words, by = "word") %>% 
+   count(word, sort = TRUE)
+ ```
+ 
+ Is the desktop app or mobile app mentioned more in P-Q-R complaints?
+   
+   ```{r}
+ pqr_complaints %>% 
+   filter(word %in% c("desktop", "mobile"))
+ ```
+ 
+ 
+ How does that compare to the base rate of the mentions of desktop and mobile?
+   
+   ```{r}
+ dat_tokenized %>% 
+   filter(word %in% c("desktop", "mobile")) %>% 
+   group_by(word) %>% 
+   count()
+ ```
+ 
+ So interestingly, even though mobile is mentioned more often than desktop in reviews, most of the P-Q-R complaints seem to be about the desktop app. 
+ 
+ 
+ This is an area where companies can compare their own metrics to the same data scraped from reviews of other companies and trained using the same or very similar modules.
+ 
+ 
+ ## Wrap-Up
+ 
+ Here we've built a relatively straightforward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. 
+
+Thanks and happy coding!
+
+
+
+[^1]: Shoutout to some co-detective work with [Josh](https://www.fieldmuseum.org/blog/open-tree-life-toward-global-synthesis-phylogenetic-knowledge) [Stevens-Stein](https://github.com/jstevensstein)
+
+[^2]: What I mean by that is: this particular topic classifier has a tree-like structure where each leaf belong to a single parent. MonkeyLearn first classifies each text into a top-level supercategory, one of: App-Software, Service, or Other. Once a text is classified at this first level, it then gets classified into one or more children in that supercategory. For instance, the children of App-Software are: Characteristics, Devices-Web, and Features. Finally, each of these has its own children. Take Characteristics: its children, which are leaf categories or terminal nodes for the classifier are Ease of Use, Integrations, Performance-Quality-Reliability, and UI-UX. This means that if a text doesn't appear to reference App-Software, the grandparent of UI-UX, it won't have a chance of being classified as UI-UX. This scheme of course doesn't preclude a text from being classified under multiple terminal nodes.
+ 
+ 
