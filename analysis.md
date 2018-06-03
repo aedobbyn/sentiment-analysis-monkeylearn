@@ -584,9 +584,11 @@ Even when weighting sentiment by frequency, it seems that Slack is generally doi
 
 **Sub-Ratings**
 
-We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn.
+We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, sub-ratings are these things:
 
-First we have to unnest our subratings which until now we've calmly shunted along in their own list column.
+![](./img/sub_ratings.jpg)
+
+First we have to unnest our sub-ratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in..
 
 
 
@@ -603,7 +605,54 @@ parsed_subratings <-
         parse(text = sub_rating_rating) %>% eval()
       )
   )
+
+parsed_subratings %>% 
+  select(sub_rating_category, sub_rating_rating, subrating_num) %>% 
+  head() %>% 
+  add_kable()
 ```
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Sub Rating Category </th>
+   <th style="text-align:left;"> Sub Rating Rating </th>
+   <th style="text-align:right;"> Subrating Num </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Customer Support </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Ease of Use </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Features &amp; Functionality </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Value for Money </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Customer Support </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Ease of Use </td>
+   <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:right;"> 1 </td>
+  </tr>
+</tbody>
+</table>
 
 What are the overall mean ratings of each aspect of the platform?
 
@@ -966,11 +1015,13 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
 
 We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to. By default we won't keep the original opinion unit (when `keep_col = FALSE`) to save space but I'll put it in the first one so we can see how `search_for` works.
 
+**love**
+
 
 ```r
 search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
@@ -984,46 +1035,43 @@ search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
  </thead>
 <tbody>
   <tr>
-   <td style="text-align:left;"> Pros:  This platform completely changed our company for the better! It's made communicating so seamless, easy and quick. We are easily able to organize everything into specific channels/departments and it makes it so easy to quickly talk to co-works throughout the day without picking up the phone, leaving the desk, calling a meeting, etc. Love love love the video calls to, very quick and easy to use. Also easy to upload files/photos to the team without having to send an email. Would highly recommend for efficient communication and streamlined project portal.   Cons:  Three-way video conferencing only an option with the premium upgraded account, which is worth the additional cost to have.   Overall:  Communication with team, video conferencing with team, organized channels without having to use a million email threads. Favorite software our company uses. </td>
-   <td style="text-align:left;"> video calls to, very quick and easy to use. </td>
-   <td style="text-align:left;"> calls </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Pros:  I constantly have Slack open on my laptop, and it's become an indispensable tool for me. I love the ability to create channels for individual projects and keep all our files and communication in a central location.  Cons:  I wish Slack had better search functionality. While it's great most of the time, sometimes the search returns a lot of results that are super old or irrelevant.   Overall:  I use Slack every single day - it has served as a replacement for email and kept our team much more organized. </td>
-   <td style="text-align:left;"> ability to create channels for individual projects and keep all our files and communication in a central location. </td>
-   <td style="text-align:left;"> channels </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Pros:  I love that all of the people with whom I communicate as part of an organization are available within seconds, without the need to find email addresses or other contact info.  Love the direct messages and within-channel communication.  Love the document saving and sharing.  Cons:  Notifications (both push and within-app) can be unreliable.  The login procedure is non-intuitive, making it difficult to convert new users from email. </td>
-   <td style="text-align:left;"> direct messages and within-channel communication. </td>
-   <td style="text-align:left;"> messages </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Pros:  Integrations Ability to share all kinds of content  Cons:  Navigating channels and keeping track of them can be overwhelming   Overall:  I use Slack on a daily basis to communicate with my peers and stay up to date with what's happening in the workplace. I love the variety in integrations and how often Slack updates their app. The user interface is extremely easy to use and shortcuts are straightforward. </td>
-   <td style="text-align:left;"> variety in integrations and how often Slack updates their app. </td>
-   <td style="text-align:left;"> integrations </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Pros: Easy to set up, easy to use, easy to admin. Love the UX of this app. It's modern and intuitive. I mainly use it to communicate with channel partners regarding customer cases.             Cons: I would like to get the whole company to use it but it's hard to get everyone to see the benefits. If not all use it we lose the benefits. It would be nice if there could be a way get the help to convince more in my company. </td>
-   <td style="text-align:left;"> UX of this app. </td>
+   <td style="text-align:left;"> Pros:  Simplifies communication between departments of the company in a safe and discreet way. Important for the confidentiality and the coordinated work of the team.  Cons:  The software is heavy and takes up a lot of space, some workers can not install it on their smartphones and it reheats some older computers. It is not an indispensable application at the office because there are other ways to communicate between the teams  Overall:  The ease of use and the tools to make better use of the application, such as bots. I definitely love the birthday bot! </td>
+   <td style="text-align:left;"> birthday bot! </td>
    <td style="text-align:left;">  </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> Pros:  SO EASY to contact colleagues. Fun way to communicate as well - love the GIFs, lunch polls, the ability to 'react' to messages. Love it all. We have so much fun on Slack and it definitely unites the office.   Overall:  Quick contact with my colleagues, and the ability to have fun at work!:) </td>
-   <td style="text-align:left;"> GIFs, lunch polls, the ability to 'react' to messages. </td>
-   <td style="text-align:left;"> messages </td>
+   <td style="text-align:left;"> Pros:  Slack is so easy to use and so much more fun than other similar products. With the option to integrate apps like Giphy, Slack makes communication with your teams fun. I also love the channels feature - if you want to open a discussion outside of a direct message or direct group message, create a channel with a purpose and allow people to grow the conversation in a thread dedicated to that topic.  Cons:  The free version only stores your most recent 10,000 messages and files, which can be a problem if you need to keep track of those conversations. The paid version eliminates that problem though, so it really isn't that big of a deal.  Overall:  It's fun, it's easy, it helps me stay on task and in the loop. </td>
+   <td style="text-align:left;"> channels feature - if you want to open a discussion outside of a direct message or direct group message, create a channel with a purpose and allow people to grow the conversation in a thread dedicated to that topic. </td>
+   <td style="text-align:left;"> channels, purpose </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Pros:  I love the ease of being able to chat with my coworkers, as well as receive announcements from the entire company. I'm able to get updates, ask questions, and chat about the day with my immediate team and the rest of the company. I also appreciate the add ons, such as lunch roulette or polls, that allow me to better collaborate and get to know my coworkers.  It's also easy to switch between groups, so I can jump from my company's workspace to my class' in a few seconds.   Cons:  I use the free version with my grad school classmates and it takes forever to show that a message has been read and remove the notification. It drives me crazy so I've taken that account off my desktop.   Overall:  increased communication and fun </td>
+   <td style="text-align:left;"> ease of being able to chat with my coworkers, as well as receive announcements from the entire company. </td>
+   <td style="text-align:left;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Pros: Slack has a simple interface that allows easy communication across large groups.  I initially used it for personal, and has since been incorporated into my current employer.  Love the ability to @someone and get a response without feeling intrusive.              Cons: None that I can think of.  There is a mobile, and desktop interface to ensure you are always up on the latest conversations/communcations. </td>
+   <td style="text-align:left;"> ability to @someone and get a response without feeling intrusive. </td>
+   <td style="text-align:left;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Pros:  Easy to use. Reliable.   Overall:  Slack is great for communicating both interoffice and with remote office staff. It's easy to use and customize. The channels make it easy to message between teams. The features for reminders are great. Love the emojis ;) </td>
+   <td style="text-align:left;"> emojis ;) </td>
+   <td style="text-align:left;"> emojis </td>
   </tr>
 </tbody>
 </table>
 
 By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
 
+**use**
+
 
 ```r
 search_for(word = "use") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
@@ -1036,39 +1084,36 @@ search_for(word = "use") %>%
  </thead>
 <tbody>
   <tr>
-   <td style="text-align:left;"> for communication into one: chat, video calls, audio calls, screen sharing, polling, etc. </td>
-   <td style="text-align:left;"> calls </td>
+   <td style="text-align:left;"> the app, the notifications don��t work good. </td>
+   <td style="text-align:left;"> notifications </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> than the desktop and web apps. </td>
-   <td style="text-align:left;"> desktop, web </td>
+   <td style="text-align:left;"> makes it easy for everyone in the office to pick up and use Slack! It saves your convos, files, and more!  We love creating group chats for big projects and always knowing where the status is!   Cons:  We did have a few issues with notifications and downloading the windows app. </td>
+   <td style="text-align:left;"> notifications </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> software to streamline internal company messages. </td>
-   <td style="text-align:left;"> messages </td>
+   <td style="text-align:left;"> it on your phone or desktop Easy to create a team and channel You can share documents, use emojis, and gifs              Cons: Losing files after a while because of storage There could be more of a variety of gifs Slowing down my computer when my teams are huge </td>
+   <td style="text-align:left;"> desktop, emojis </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> it on mobile application. </td>
-   <td style="text-align:left;"> mobile </td>
+   <td style="text-align:left;"> both the desktop and mobile app to send messages to my colleagues. </td>
+   <td style="text-align:left;"> desktop, mobile, messages </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> that channel but I dont really understand how to join or create other channels. </td>
-   <td style="text-align:left;"> channels </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> on both desktop and handheld devices. </td>
-   <td style="text-align:left;"> desktop </td>
+   <td style="text-align:left;"> emojis as comments, tag certain people within the comments, and make it fun to have a conversation within the app. </td>
+   <td style="text-align:left;"> emojis </td>
   </tr>
 </tbody>
 </table>
 
+**want**
 
 
 ```r
 search_for(word = "want") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
@@ -1081,28 +1126,24 @@ search_for(word = "want") %>%
  </thead>
 <tbody>
   <tr>
-   <td style="text-align:left;"> to message multiple people the same message you either have to message each directly or create a new group which can sometimes make your channels cluttered if its a one off. </td>
-   <td style="text-align:left;"> channels </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> to focus on something and want to mute some specific bot instead of disabling all notifications. </td>
-   <td style="text-align:left;"> notifications </td>
+   <td style="text-align:left;"> and people can interact between them using direct messages             Cons: Communication can get messy if all the people doesn't use it correctly. </td>
+   <td style="text-align:left;"> messages </td>
   </tr>
   <tr>
    <td style="text-align:left;"> to be envolved and other times where I don't need to be and I just would like to temporarily quite the notifications. </td>
    <td style="text-align:left;"> notifications </td>
   </tr>
   <tr>
-   <td style="text-align:left;"> to find a password that you shared in the app a while back, you can search the keywords of the credentials and find them instantly. </td>
+   <td style="text-align:left;"> closed groups that others cannot see. </td>
+   <td style="text-align:left;"> groups </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> to quickly share a file, image, or web link? Slack them. </td>
+   <td style="text-align:left;"> web </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> to see a lot of history and have everything searchable. </td>
    <td style="text-align:left;"> search </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> to open a discussion outside of a direct message or direct group message, create a channel with a purpose and allow people to grow the conversation in a thread dedicated to that topic. </td>
-   <td style="text-align:left;"> purpose </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> to be reached, I can set notifications to silent. </td>
-   <td style="text-align:left;"> notifications </td>
   </tr>
 </tbody>
 </table>
@@ -1240,6 +1281,7 @@ So even though mobile makes more appearances in negative reviews than the deskto
 
 I'd be interested to know here whether people spend more active time on Slack on mobile or desktop. Do they mention mobile more becuase they use it more or simply because the experience is more noteworthy than the desktop experience?
 
+<br>
 
 
 #### TF-IDF

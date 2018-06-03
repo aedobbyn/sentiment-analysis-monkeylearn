@@ -13,7 +13,7 @@ unnamed-chunk-10	category_freq	dat_clean	%>%	group_by	category	count	rename	n	le
 unnamed-chunk-11	ggplot	category_freq	geom_bar	aes	fct_reorder	category	n_opinion_units	sentiment_valence	theme_bw	ggtitle	labs	scale_fill_manual	pal	coord_flip
 unnamed-chunk-12	sentiment_by_category_weighted	category_freq	%>%	mutate	mean_sentiment	n_opinion_units	arrange	desc	weighted_sentiment	head	add_kable
 unnamed-chunk-13	subrated_dat	dat_clean	%>%	unnest	sub_ratings_split	mutate	subrating_rating	as.numeric	select	doc_uuid	subrating_title	sentiment	sentiment_num	rating_perc	opinion_unit
-unnamed-chunk-14	parsed_subratings	reviews_with_subratings_unnested	%>%	rowwise	mutate	ifelse	is.na	sub_rating_rating	parse	eval
+unnamed-chunk-14	parsed_subratings	reviews_with_subratings_unnested	%>%	rowwise	mutate	ifelse	is.na	sub_rating_rating	parse	eval	select	sub_rating_category	subrating_num	head	add_kable
 unnamed-chunk-15	parsed_subratings_summary	parsed_subratings	%>%	drop_na	subrating_num	sub_rating_category	group_by	summarise	mean	add_kable
 unnamed-chunk-16	parsed_subratings_summary	alias	c	%>%	left_join	sentiment_by_category	add_kable
 unnamed-chunk-17	stop_words	%>%	bind_rows	tibble	c	rep	length	word
@@ -30,9 +30,9 @@ unnamed-chunk-27	first_letter_lm	lm	dat_tokenized_first_letter	%>%	drop_na	first
 unnamed-chunk-28	replace_y	is.null	x	length	replacement
 unnamed-chunk-29	category_reg	dat_clean	category	which	%>%	tolower	unique	str_c
 unnamed-chunk-30	search_for	dat_clean	content	word_capped	simple_cap	word	q_col	enquo	col	look_for	ifelse	append_the	glue	out	df	%>%	filter	str_detect	distinct	rowwise	mutate	str_extract	str_replace_all	str_extract_all	phrase	category_reg	replace_y	as_vector	unique	str_c	keep_col	select	return
-unnamed-chunk-31	search_for	%>%	replace_na_df	head	add_kable
-unnamed-chunk-32	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	add_kable
-unnamed-chunk-33	search_for	%>%	drop_na	phrase_categories	replace_na_df	head	add_kable
+unnamed-chunk-31	search_for	%>%	replace_na_df	sample_n	add_kable
+unnamed-chunk-32	search_for	%>%	drop_na	phrase_categories	replace_na_df	sample_n	add_kable
+unnamed-chunk-33	search_for	%>%	drop_na	phrase_categories	replace_na_df	sample_n	add_kable
 unnamed-chunk-34	pqr_negative	dat_clean	%>%	filter	category	sentiment
 unnamed-chunk-35	pqr_complaints	pqr_negative	%>%	unnest_tokens	word	content	filter	category	anti_join	stop_words	count	head	add_kable
 unnamed-chunk-36	pqr_complaints	%>%	filter	word	%in%	c	arrange	desc	n	add_kable

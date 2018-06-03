@@ -13,7 +13,7 @@ unnamed-chunk-10	category_freq
 unnamed-chunk-11	
 unnamed-chunk-12	sentiment_by_category_weighted	.analysis_cache/html/unnamed-chunk-12_bb3766013e768e984381eff9ff733ddd_meta
 unnamed-chunk-13	subrated_dat
-unnamed-chunk-14	parsed_subratings
+unnamed-chunk-14	parsed_subratings	.analysis_cache/html/unnamed-chunk-14_95e60993a42819e0a9cfdee83f810847_meta
 unnamed-chunk-15	parsed_subratings_summary	.analysis_cache/html/unnamed-chunk-15_0c5d3a25134df1d3c6ab06e81315eb91_meta
 unnamed-chunk-16	parsed_subratings_summary	.analysis_cache/html/unnamed-chunk-16_c755a3a88efd1fe75a87e4686f9d7d7d_meta
 unnamed-chunk-17	stop_words
@@ -30,9 +30,9 @@ unnamed-chunk-27	first_letter_lm
 unnamed-chunk-28	replace_y
 unnamed-chunk-29	category_reg
 unnamed-chunk-30	search_for
-unnamed-chunk-31	.analysis_cache/html/unnamed-chunk-31_5e5db1ce3c5b0c7cea14cb167a9f2575_meta
-unnamed-chunk-32	.analysis_cache/html/unnamed-chunk-32_0304a96c9392a7bae6aa8e11913464a9_meta
-unnamed-chunk-33	.analysis_cache/html/unnamed-chunk-33_59e322debcb18b7f6a140e06af2a709d_meta
+unnamed-chunk-31	.analysis_cache/html/unnamed-chunk-31_aa36d287c4ef106985c300d9a1e15cdd_meta
+unnamed-chunk-32	.analysis_cache/html/unnamed-chunk-32_3fd909f7ae1e24aba8bb241ab0172d32_meta
+unnamed-chunk-33	.analysis_cache/html/unnamed-chunk-33_b1dc699faf80e82137ae077e70f7ca79_meta
 unnamed-chunk-34	pqr_negative
 unnamed-chunk-35	pqr_complaints	.analysis_cache/html/unnamed-chunk-35_6932fbef9065e0aa17d8ae74f6111b93_meta
 unnamed-chunk-36	.analysis_cache/html/unnamed-chunk-36_7f17ed2ac2bd6d047b91a41a95cc221e_meta

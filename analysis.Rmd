@@ -371,9 +371,11 @@ Even when weighting sentiment by frequency, it seems that Slack is generally doi
 
 **Sub-Ratings**
 
-We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn.
+We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, sub-ratings are these things:
 
-First we have to unnest our subratings which until now we've calmly shunted along in their own list column.
+![](./img/sub_ratings.jpg)
+
+First we have to unnest our sub-ratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in..
 
 ```{r, include=FALSE}
 subrated_dat <-
@@ -397,6 +399,10 @@ parsed_subratings <-
         parse(text = sub_rating_rating) %>% eval()
       )
   )
+
+parsed_subratings %>% 
+  select(sub_rating_category, sub_rating_rating, subrating_num) %>% 
+  sample_n(5) 
 ```
 
 What are the overall mean ratings of each aspect of the platform?
@@ -519,7 +525,7 @@ lm(
 ) %>%
   summary() %>%
   tidy() %>% 
-  add_kable()
+  add_kable(round_decimals = FALSE)
 ```
 
 Yes -- words with more positive sentiments tend to occur in more positive opinion units.
@@ -556,14 +562,17 @@ dat_tokenized_first_letter <-
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
 ```{r, echo=FALSE}
+letter_labels <- letters
+
 ggplot(dat_tokenized_first_letter) +
-  # geom_smooth(aes(first_letter_num, sentiment_num),
-  #             colour = "blue") +
   geom_smooth(aes(first_letter_num, score_sentiment)) +
-  # geom_smooth(aes(first_letter_num, score_sentiment),
-  #             colour = "dark green", method = "lm",
-  #             linetype = "dashed", se = FALSE) +
-  geom_hline(data = dat_tokenized_first_letter, yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), linetype = "dashed") +
+  geom_smooth(aes(first_letter_num, score_sentiment),
+              method = "lm",
+              linetype = "dashed", se = FALSE, size = 0.5) +
+  scale_x_continuous(breaks = 1:26, labels = letters) +
+  geom_hline(data = dat_tokenized_first_letter, 
+             yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), 
+             linetype = "dashed") +
   ggtitle("Relationship between a word's first letter and its sentiment") +
   labs(x = "First letter", y = "Sentiment", subtitle = "as measured by AFINN scale") +
   theme_bw() +
@@ -657,29 +666,34 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
 
 We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to. By default we won't keep the original opinion unit (when `keep_col = FALSE`) to save space but I'll put it in the first one so we can see how `search_for` works.
 
+**love**
+
 ```{r}
 search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
 By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
 
+**use**
+
 ```{r}
 search_for(word = "use") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
+**want**
 
 ```{r}
 search_for(word = "want") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  head() %>%
+  sample_n(5) %>%
   add_kable()
 ```
 
@@ -739,6 +753,7 @@ So even though mobile makes more appearances in negative reviews than the deskto
 
 I'd be interested to know here whether people spend more active time on Slack on mobile or desktop. Do they mention mobile more becuase they use it more or simply because the experience is more noteworthy than the desktop experience?
 
+<br>
 
 
 #### TF-IDF
