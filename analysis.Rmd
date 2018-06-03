@@ -531,6 +531,23 @@ lm(
 Yes -- words with more positive sentiments tend to occur in more positive opinion units.
 
 
+```{r}
+ggplot(dat_tokenized_unnested %>% group_by(sentiment, sentiment_num) %>% count(score_sentiment)) +
+  ggridges::geom_ridgeline(aes(score_sentiment, y = factor(sentiment_num), height = n,
+                               scale = n,
+                               fill = factor(sentiment_num))) 
+  # facet_wrap(~ sentiment)
+```
+
+```{r}
+ggplot(dat_tokenized_unnested) +
+  geom_density(aes(score_sentiment)) +
+  # geom_point(aes(sentiment_num, y = score_sentiment))
+  facet_wrap(~ sentiment)
+```
+
+
+
 As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
 
 We'll extract just the first letter of the word and assign it the number of the alphabet from 1 to 24.
@@ -573,6 +590,8 @@ ggplot(dat_tokenized_first_letter) +
   geom_hline(data = dat_tokenized_first_letter, 
              yintercept = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE), 
              linetype = "dashed") +
+  # geom_text(aes(x = 25, y = mean(dat_tokenized_first_letter$score_sentiment, na.rm = TRUE) - 0.25,
+  #               label = "foo")) +
   ggtitle("Relationship between a word's first letter and its sentiment") +
   labs(x = "First letter", y = "Sentiment", subtitle = "as measured by AFINN scale") +
   theme_bw() +
