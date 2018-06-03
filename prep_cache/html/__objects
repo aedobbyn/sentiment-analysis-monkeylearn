@@ -1,4 +1,4 @@
-unnamed-chunk-1	.Random.seed
+unnamed-chunk-1	
 source_in	all_reviews_slack	dat	data_dir	reviews_with_subratings_nested	reviews_with_subratings_unnested
 unnamed-chunk-2	
 unnamed-chunk-3	slack_url
@@ -9,15 +9,15 @@ unnamed-chunk-7	scrape_content	scrape_sub_ratings
 unnamed-chunk-8	try_scrape_content	try_scrape_sub_ratings
 unnamed-chunk-9	
 unnamed-chunk-10	get_ratings_and_content
-sample_ratings_scraped	
+sample_ratings_scraped	.prep_cache/html/sample_ratings_scraped_5dd3cecbb74a248ded2831912ad5ceef_meta
 unnamed-chunk-11	get_multiple_pages
 unnamed-chunk-12	
-unnamed-chunk-13	
+unnamed-chunk-13	.prep_cache/html/unnamed-chunk-13_624d855cd429dfc704fe441bef517a4d_meta
 unnamed-chunk-14	
 unnamed-chunk-15	clean_content
 unnamed-chunk-16	split_subratings
 unnamed-chunk-17	
-unnamed-chunk-18	
+unnamed-chunk-18	.prep_cache/html/unnamed-chunk-18_5b7fba57a656d7473b618a81daf2f4fe_meta
 unnamed-chunk-19	replacement_classifier	replacement_extractor
 unnamed-chunk-20	try_unnest_result_classifier	try_unnest_result_extractor	unnest_result_classifier	unnest_result_extractor
 unnamed-chunk-21	get_classification_batch	get_extraction_batch
@@ -27,3 +27,4 @@ unnamed-chunk-24	write_classification_batches	write_extraction_batches
 unnamed-chunk-25	
 unnamed-chunk-26	gather_batches
 unnamed-chunk-27	
+styles	add_kable	pal	round_dec

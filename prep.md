@@ -1,5 +1,5 @@
 ---
-title: "MonkeyLearn Sentiment Analysis: Scrape"
+title: "MonkeyLearn Sentiment Analysis: Prep"
 output:
   html_document:
     keep_md: true
@@ -18,7 +18,9 @@ What do people who use Slack think of it? What aspects of the product are the mo
 
 These are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
 
-**The Plan**
+<br>
+
+#### The Plan
 
 Specifically, MonkeyLearn will handle extracting reviews into distinct opinion units and attaching topics and sentiments to those opinion units. Most of what we have to do is shunt data back and forth between our environment and MonkeyLearn's custom machine learning modules. 
 
@@ -28,8 +30,10 @@ The opinion unit approach gives us some more fine-grained control over what we'r
 
 Then we're left with a dataset of opinion units, each tagged with a sentiment as well as with one or many categories that we can sink our teeth into.
 
+<br>
+<br>
 
-### Scraping the Data
+## Scraping the Data
 
 First step is to collect all of the reviews of Slack that people have left on Capterra.
 
@@ -48,8 +52,44 @@ library(glue)
 library(knitr)
 library(dobtools)
 library(tidytext)
+library(kableExtra)
 ```
 
+
+
+```r
+pal <- wesanderson::wes_palette("Rushmore1")
+
+round_dec <- function(x, n_dec = 3) {
+  if (is.numeric(x)) {
+    x <- x %>% round(digits = 2)
+  } 
+  x
+}
+
+add_kable <- function(df, round_decimals = TRUE, 
+                      replace_na = FALSE, capitalize = TRUE, ...) {
+  
+  if (round_decimals == TRUE) {
+    df <- df %>% 
+      map_dfc(round_dec)
+  }
+  
+  if (replace_na == TRUE) {
+    df <- 
+      df %>% dobtools::replace_na_df()
+  }
+  
+  if (capitalize == TRUE) {
+    df <- 
+      df %>% dobtools::cap_df()
+  }
+  
+  df %>% 
+    kable() %>% 
+    kable_styling(full_width = F)
+}
+```
 
 
 
@@ -99,7 +139,9 @@ strip_whitespace_newlines <- function(t) {
 }
 ```
 
-**Grabbing multiple pages**
+<br>
+
+#### Grabbing multiple pages
 
 Our `slack_url` loads 99 reviews of the total 4500+ at the time of scraping. To load more, the user would hit the "Show more reviews" button at the bottom of the page. This fetches more reviews from the server, but doesn't change the URL at all. That means that just using `rvest` and this URL without involving [`RSelenium`](https://github.com/ropensci/RSelenium) or something more fancy, we can only scrape the first 99 reviews.
 
@@ -121,8 +163,9 @@ pages_want <- 1:45
 slack_full_urls <- str_c("https://www.capterra.com/gdm_reviews?page=", pages_want, "&product_id=135003", sep = "")
 ```
 
+<br>
 
-**Defining some scraping functions**
+#### Defining some scraping functions
 
 We can specify which of the 99 reviews on a page we want to scrape with from the review's number, contained in `#review-<review_number_here>` What `scrape_rating` will do is  `#review-{i} .overall-rating` We'll wrap the `scrape_rating` function in a trycatch so that we return an `NA` if something goes wrong rather than an error.
 
@@ -172,7 +215,9 @@ try_scrape_content(slack_full_urls[1], 42)
 ## [1] "Pros:  It combines instant messaging and chat. Allows us to organize. It is really hard to describe how Slack works. You just have to do it.  Cons:  I would like to use the email features more but it seems expensive for a small step up. I know the paid plans do much more, but we won't use those.   Overall:  It is just a better way to work."
 ```
 
-**Combining scraping functions**
+<br>
+
+#### Combining scraping functions
 
 Now all that's left is to string these all together in the right order inside a function, `get_ratings_and_content`, that grabs a vector of reviews from a single page. We can keep track of which page we're scraping by extracting it straight from the URL itself. (If we use the original Slack URL which doesn't contain a page number, the `page` value gets an `NA`.)
 
@@ -244,18 +289,18 @@ get_ratings_and_content(
   url = slack_full_urls[10],
   review_range = 1:3
 ) %>%
-  kable()
+  add_kable()
 ```
 
-<table>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
  <thead>
   <tr>
-   <th style="text-align:left;"> page_num </th>
-   <th style="text-align:right;"> review_num </th>
-   <th style="text-align:left;"> rating </th>
-   <th style="text-align:left;"> sub_ratings </th>
-   <th style="text-align:right;"> rating_perc </th>
-   <th style="text-align:left;"> content </th>
+   <th style="text-align:left;"> Page Num </th>
+   <th style="text-align:right;"> Review Num </th>
+   <th style="text-align:left;"> Rating </th>
+   <th style="text-align:left;"> Sub Ratings </th>
+   <th style="text-align:right;"> Rating Perc </th>
+   <th style="text-align:left;"> Content </th>
   </tr>
  </thead>
 <tbody>
@@ -263,31 +308,32 @@ get_ratings_and_content(
    <td style="text-align:left;"> 10 </td>
    <td style="text-align:right;"> 1 </td>
    <td style="text-align:left;"> 5/5 </td>
+   <td style="text-align:left;"> 5       /       5                                                        Ease of Use                                                                                                                               5       /       5                                                        Features &amp; Functionality                                                                                                                                                   5       /       5                                                        Customer Support                                                                                                     5       /       5                                                    Value for Money </td>
+   <td style="text-align:right;"> 1.0 </td>
+   <td style="text-align:left;"> Pros:  I like being able to go real time about different topics regarding what needs to happen during briefings or meetings, etc...  Cons:  I really wish that there was a way to integrate conversations about very specific topics, for example about a client...into CRM </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> 10 </td>
+   <td style="text-align:right;"> 2 </td>
+   <td style="text-align:left;"> 5/5 </td>
    <td style="text-align:left;"> 5       /       5                                                        Ease of Use                                                                                                                               4       /       5                                                        Features &amp; Functionality                                                                                                                                                   5       /       5                                                        Customer Support                                                                                                     5       /       5                                                    Value for Money </td>
    <td style="text-align:right;"> 1.0 </td>
    <td style="text-align:left;"> Pros:   You can use your own workspace url  unlimited people in the group  you can add different channels  real time messaging for all the members of the group  eliminate the use of email (which is kind of inconvenient because it's not real time  available in desktop/mobile/oush notifications  Cons:  Pretty much nothing negative about this product. Probably, just add more features? Like video calling </td>
   </tr>
   <tr>
    <td style="text-align:left;"> 10 </td>
-   <td style="text-align:right;"> 2 </td>
+   <td style="text-align:right;"> 3 </td>
    <td style="text-align:left;"> 4/5 </td>
    <td style="text-align:left;"> 4       /       5                                                        Ease of Use                                                                                                                               3       /       5                                                        Features &amp; Functionality                                                                                                                         4       /       5                                                    Value for Money </td>
    <td style="text-align:right;"> 0.8 </td>
    <td style="text-align:left;"> Pros:  i like the ease of use and the ability to share with multiple people.  i like the group set up and how easy it is to navigate  Cons:  i get a little anxiety over the amount of notifications i receive.  i wish i did not belong to so many groups! </td>
   </tr>
-  <tr>
-   <td style="text-align:left;"> 10 </td>
-   <td style="text-align:right;"> 3 </td>
-   <td style="text-align:left;"> 4/5 </td>
-   <td style="text-align:left;"> 4       /       5                                                        Ease of Use                                                                                                                               4       /       5                                                        Features &amp; Functionality                                                                                                                                                   5       /       5                                                        Customer Support                                                                                                     5       /       5                                                    Value for Money </td>
-   <td style="text-align:right;"> 0.8 </td>
-   <td style="text-align:left;"> Pros:  Makes email unnecessary for a wide variety of work communications and speeds up the ability to make decisions and communications at work.   Cons:  The least helpful is that the alarm to indicate a message is waiting is very quiet, with no way to increase the volume. </td>
-  </tr>
 </tbody>
 </table>
 
+<br>
 
-**Grabbing multiple pages**
+#### Grabbing multiple pages
 
 Now that we can grab everything we want from a single page, let's wrap `get_ratings_and_content` up into something that iterates through multiple pages. The maximum number of reviews on a page is 99, so we'll set our default `review_range` to that.
 
@@ -323,17 +369,17 @@ And now we can check out what we've got:
 ```r
 all_reviews_slack %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
-<table>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
  <thead>
   <tr>
-   <th style="text-align:left;"> rating </th>
-   <th style="text-align:left;"> sub_ratings </th>
-   <th style="text-align:left;"> content </th>
-   <th style="text-align:right;"> review_num </th>
-   <th style="text-align:right;"> page_num </th>
+   <th style="text-align:left;"> Rating </th>
+   <th style="text-align:left;"> Sub Ratings </th>
+   <th style="text-align:left;"> Content </th>
+   <th style="text-align:right;"> Review Num </th>
+   <th style="text-align:right;"> Page Num </th>
   </tr>
  </thead>
 <tbody>
@@ -410,9 +456,10 @@ all_reviews_slack <-
 
 
 <br>
+<br>
 
 
-### Post-Processing
+## Post-Processing
 
 We've got data! Next a few quick cleaning steps. Our review content often represents newlines by including a lot of extra whitespace. We'll `clean_content` by cleaning out multiple spaces.
 
@@ -455,7 +502,9 @@ clean_content <- function(t) {
 <!-- } -->
 <!-- ``` -->
 
-**Tidying subratings**
+<br>
+
+#### Tidying subratings
 
 Now let's clean up our subratings. When we scraped subratings we concatenated all of them into one long string because there wasn't an selector for each individual subrating. We want to split sub-ratings up into their own rows; for each long string, we'll extract all numbers and the corresponding name of the sub-rating the rating number belongs to (e.g. Value for Money 5/5) into a dataframe representing the same information in tidy format. We'll nest these in their own list column for later unnesting if we so choose. Rows without any sub-ratings get the appropriate NAs in both columns.
 
@@ -525,18 +574,18 @@ Let's take a peek at our first 10 rows.
 ```r
 reviews_with_subratings_unnested %>%
   slice(1:10) %>%
-  kable()
+  add_kable()
 ```
 
-<table>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
  <thead>
   <tr>
-   <th style="text-align:left;"> rating </th>
-   <th style="text-align:left;"> content </th>
-   <th style="text-align:right;"> review_num </th>
-   <th style="text-align:right;"> page_num </th>
-   <th style="text-align:left;"> sub_rating_category </th>
-   <th style="text-align:left;"> sub_rating_rating </th>
+   <th style="text-align:left;"> Rating </th>
+   <th style="text-align:left;"> Content </th>
+   <th style="text-align:right;"> Review Num </th>
+   <th style="text-align:right;"> Page Num </th>
+   <th style="text-align:left;"> Sub Rating Category </th>
+   <th style="text-align:left;"> Sub Rating Rating </th>
   </tr>
  </thead>
 <tbody>
@@ -639,8 +688,9 @@ The `monkeylearn` R package can get us most of the way there. `monkeylearn` expo
 
 As of `monkeylearn` 2.0 it is possible to send batches of texts to the API and return a dataframe relating each input to its (often) multiple outputs. We don't need to handle batching ourselves; `monkeylearn` will by default send 200 texts per batch (the recommended maximum number of texts to be sent to the API at once) and move onto the next batch of 200 until we get to the end of our input. Similarly, `monkeylearn` already takes care of rate limiting, so we don't need to put in any custom sleeps between requests ourselves.
 
+<br>
 
-**Tweaking the API response**
+#### Tweaking the API response
 
 Since we're working with custom-trained extractors and classifiers, the API response is slightly different from responses that the package is set up to handle. In particular, the package's handling of `NULL` values doesn't extend perfectly to this extractor and classifier, so we'll need to do a slight modification to change the missing values into values that we can unnest correctly. For that reason, we'll set `unnest` to FALSE inside of `monkey_extract` and `monkey_classify` and do the unnesting ourselves.
 <!-- The API returns zero-length vectors or `NULL`s for empty opinion units or when a unit wasn't classified into any categories. -->
@@ -724,7 +774,9 @@ safe_return
 
 The function executes successfully and we get a record of the error message.
 
-**Batching input to the MonkeyLearn API**
+<br>
+
+#### Batching input to the MonkeyLearn API
 
 Now a function wrap up `monkey_classify` and `monkey_extract`. Rather than writing one extraction wrapper and one classifier wrapper, I combined them both into the same function below. We supply an `id` which can be either an extractor ID or a classifier ID set `type_of_problem` to either `"classification"` or `"extraction"` depending on the ID. (All classifier IDs begin with `"cl_"` and all extractor IDs begin with ``"ex_"`).
 
@@ -868,8 +920,9 @@ gather_batches <- function(dir, end_row) {
 }
 ```
 
+<br>
 
-**Sending text the API and gathering it all up again**
+#### Sending text the API and gathering it all up again
 
 Cool, now we've set up everything we need to process our data and reconstitute the result. As a quick refresher, the flow here is that we'll take our scraped data, send it to the extractor to extract multiple opinion units per review, and then send each of those opinion units to the classifier to receive its sentiment rating and multiple classifications per opinion unit.
 

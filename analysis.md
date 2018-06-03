@@ -198,8 +198,9 @@ dat_clean <-
 
 After cleaning, we've got 2314 unique opinion units to work with, each with a single sentiment and multiple classifications.
 
+<br>
 
-**Initial exploring**
+#### Initial exploring
 
 Now let's get the lay of the land by seeing what the breakdown of sentiments is overall.
 
@@ -223,8 +224,9 @@ sentiment_breakdown <-
 
 We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there 😆.)
 
+<br>
 
-**Overall ratings**
+#### Overall ratings
 
 We might ask how users' overall ratings of the product line up with sentiments assigned to each opinion unit by MonkeyLearn. 
 
@@ -269,8 +271,9 @@ ratings_by_sentiment %>%
 
 There is very little difference in overall ratings of the product across opinion unit sentiments. This indicates that despite critiques (which people are encouraged to think of and express in the Cons section), most overall reviews remain positive.
 
+<br>
 
-**Sentiment and Category**
+#### Sentiment and Category
 
 What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each category.
 
@@ -581,14 +584,15 @@ sentiment_by_category_weighted %>%
 
 Even when weighting sentiment by frequency, it seems that Slack is generally doing well overall. Medium or high sentiment categories dominate the reviews in general.
 
+<br>
 
-**Sub-Ratings**
+#### Subratings
 
-We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, sub-ratings are these things:
+We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, subratings are these things:
 
 ![](./img/sub_ratings.jpg)
 
-First we have to unnest our sub-ratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in..
+First we have to unnest our subratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in..
 
 
 
@@ -608,51 +612,19 @@ parsed_subratings <-
 
 parsed_subratings %>% 
   select(sub_rating_category, sub_rating_rating, subrating_num) %>% 
-  head() %>% 
-  add_kable()
+  sample_n(5) 
 ```
 
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
- <thead>
-  <tr>
-   <th style="text-align:left;"> Sub Rating Category </th>
-   <th style="text-align:left;"> Sub Rating Rating </th>
-   <th style="text-align:right;"> Subrating Num </th>
-  </tr>
- </thead>
-<tbody>
-  <tr>
-   <td style="text-align:left;"> Customer Support </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Ease of Use </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Features &amp; Functionality </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Value for Money </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Customer Support </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Ease of Use </td>
-   <td style="text-align:left;"> 5/5 </td>
-   <td style="text-align:right;"> 1 </td>
-  </tr>
-</tbody>
-</table>
+```
+## # A tibble: 5 x 3
+##   sub_rating_category      sub_rating_rating subrating_num
+##   <chr>                    <chr>                     <dbl>
+## 1 Features & Functionality 5/5                       1.00 
+## 2 Value for Money          4/5                       0.800
+## 3 Value for Money          4/5                       0.800
+## 4 Features & Functionality 4/5                       0.800
+## 5 Ease of Use              5/5                       1.00
+```
 
 What are the overall mean ratings of each aspect of the platform?
 
@@ -699,7 +671,7 @@ parsed_subratings_summary %>%
 
 
 
-How do these sub-ratings match up with category ratings we calculated earlier? Some of the subrating names match perfectly with MonkeyLearn categories like "Customer Support" and "Ease of Use", but the other two we'll need to assign an alias to be able to join it up with the mean MonkeyLearn sentiment for that category and compare the two.
+How do these subratings match up with category ratings we calculated earlier? Some of the subrating names match perfectly with MonkeyLearn categories like "Customer Support" and "Ease of Use", but the other two we'll need to assign an alias to be able to join it up with the mean MonkeyLearn sentiment for that category and compare the two.
 
 
 ```r
@@ -763,7 +735,7 @@ In any case, you could see this as evidence that it's important to take both the
 <br>
 
 
-### Down to the word level
+## Down to the word level
 
 Now that we have classifications for each opinion units, we can see how the individual words in opinion units map to the sentiment and category classification they were assigned, and maybe gain some more granular insight about what people like and dislike about the product.
 
@@ -866,7 +838,7 @@ lm(
 ) %>%
   summary() %>%
   tidy() %>% 
-  add_kable()
+  add_kable(round_decimals = FALSE)
 ```
 
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
@@ -882,22 +854,36 @@ lm(
 <tbody>
   <tr>
    <td style="text-align:left;"> (Intercept) </td>
-   <td style="text-align:right;"> 0.54 </td>
-   <td style="text-align:right;"> 0.01 </td>
-   <td style="text-align:right;"> 97.32 </td>
+   <td style="text-align:right;"> 0.5444099 </td>
+   <td style="text-align:right;"> 0.0055940 </td>
+   <td style="text-align:right;"> 97.31968 </td>
    <td style="text-align:right;"> 0 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> score_sentiment </td>
-   <td style="text-align:right;"> 0.03 </td>
-   <td style="text-align:right;"> 0.00 </td>
-   <td style="text-align:right;"> 10.63 </td>
+   <td style="text-align:right;"> 0.0289103 </td>
+   <td style="text-align:right;"> 0.0027209 </td>
+   <td style="text-align:right;"> 10.62545 </td>
    <td style="text-align:right;"> 0 </td>
   </tr>
 </tbody>
 </table>
 
-Yes -- words with more positive sentiments tend to occur in more positive opinion units.
+Words with more positive sentiments tend to occur in more positive opinion units but as we can see from the effect size and the density plot below, the difference is not dramatic. (I use a density plot instead of a histogram to account for the difference in the number of total words in Negative and Positive opinion units, since there are about 3 times as many Positive opinion units as negative ones.)
+
+
+
+```r
+ggplot(dat_tokenized_unnested) +
+  geom_density(aes(score_sentiment, fill = sentiment), adjust = 3) +
+  facet_wrap(~ sentiment) +
+  ggtitle("Word sentiment distribution by document sentiment") +
+  labs(x = "Word sentiment", y = "Density") +
+  theme_minimal()
+```
+
+![](analysis_files/figure-html/unnamed-chunk-24-1.png)<!-- -->
+
 
 
 As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
@@ -932,7 +918,7 @@ dat_tokenized_first_letter <-
 
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
-![](analysis_files/figure-html/unnamed-chunk-26-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-27-1.png)<!-- -->
 
 
 
@@ -952,7 +938,7 @@ first_letter_lm <-
 
 <br>
 
-### Searching for certain phrases
+#### Searching for certain phrases
 
 
 
@@ -1015,7 +1001,7 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
 
 We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to. By default we won't keep the original opinion unit (when `keep_col = FALSE`) to save space but I'll put it in the first one so we can see how `search_for` works.
 
-**love**
+<em>love</em>
 
 
 ```r
@@ -1064,7 +1050,7 @@ search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
 
 By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
 
-**use**
+<em>use</em>
 
 
 ```r
@@ -1106,7 +1092,7 @@ search_for(word = "use") %>%
 </tbody>
 </table>
 
-**want**
+<em>want</em>
 
 
 ```r
@@ -1149,6 +1135,7 @@ search_for(word = "want") %>%
 </table>
 
 
+<br>
 
 #### Going Negative
 
@@ -1479,6 +1466,7 @@ category_tfidf_maxes %>%
 
 This kind of analysis can give us a sense of what people are actually saying and allows the humans to get a feel for where the pain points are and what could be improved.
 
+<br>
 
 ## Wrap-Up
 
