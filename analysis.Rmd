@@ -86,6 +86,7 @@ data_dir <- glue(here::here("data", "raw"), "/")
 
 dat <-
   read_rds(here("data", "derived", "dat.rds"))
+dat$rating_perc <- dat$rating_perc %>% as.numeric()
 ```
 
 
@@ -142,6 +143,11 @@ dat <- dat %>%
 ```
 
 
+```{r, include=FALSE}
+dat$sentiment <- dat$sentiment %>% 
+  fct_relevel(c("Positive", "Neutral", "Negative"))
+```
+
 
 What about categories?
 
@@ -184,8 +190,11 @@ sentiment_breakdown <-
 
 ```{r sentiment_breakdown_graph, echo=FALSE}
 ggplot(sentiment_breakdown) +
-  geom_bar(aes(sentiment, sentiment_prop, fill = sentiment), position = "dodge", stat = "identity") +
-  geom_text(aes(sentiment, sentiment_prop + 0.03, label = paste0(round(sentiment_prop * 100, digits = 2), "%")),
+  geom_bar(aes(fct_relevel(sentiment, "Positive", "Neutral", "Negative"), sentiment_prop, 
+               fill = fct_relevel(sentiment, "Positive", "Neutral", "Negative")),
+           position = "dodge", stat = "identity", width = 0.5) +
+  geom_text(aes(sentiment, sentiment_prop + 0.03, 
+                label = paste0(round(sentiment_prop * 100, digits = 2), "%")),
     fontface = "italic", size = 3
   ) +
   scale_y_continuous(labels = scales::percent) +
@@ -198,6 +207,30 @@ ggplot(sentiment_breakdown) +
 
 We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there `r emo::ji("laughing")`.)
 
+
+**Overall ratings**
+
+We might ask how users' overall ratings of the product line up with sentiments assigned to each opinion unit by MonkeyLearn. 
+
+It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.
+
+```{r}
+ratings_by_sentiment <-
+  dat_clean %>%
+  distinct(doc_uuid, .keep_all = TRUE) %>% 
+  group_by(sentiment) %>%
+  summarise(
+    mean_rating = mean(rating_perc, na.rm = TRUE)
+  )
+
+ratings_by_sentiment %>% 
+  add_kable()
+```
+
+There is very little difference in overall ratings of the product across opinion unit sentiments. This indicates that despite critiques (which people are encouraged to think of and express in the Cons section), most overall reviews remain positive.
+
+
+**Sentiment and Category**
 
 What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each category.
 
@@ -279,7 +312,7 @@ ggplot(sentiment_by_category) +
 
 This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
-Let's see the frequency with which opinion units are categorized into different topics.
+Let's plot the frequency with which opinion units are categorized into different topics.
 
 ```{r}
 category_freq <-
@@ -303,8 +336,10 @@ ggplot(category_freq) +
   coord_flip()
 ```
 
+There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparraging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
 
-Now we can weight the category sentiment by the number of times it occurs in an opinion unit.
+
+Now we can weight the category sentiment by the number of times it occurs in an opinion unit. This can give us a better idea of the sentiment in the context of how often it's mentioned. This is important because if a category has very low sentiment but its almost never mentioned, it may be less critical to focus on improving than an only mildly badly rated category with a lot of mentions.
 
 ```{r, dependson="sentiment_by_category"}
 sentiment_by_category_weighted <-
@@ -331,38 +366,7 @@ ggplot(sentiment_by_category_weighted) +
   coord_flip()
 ```
 
-**Overall ratings**
-
-What about overall ratings of the product? How do those line up with sentiments assigned to each opinion unit by MonkeyLearn?
-
-```{r}
-ratings_by_sentiment <-
-  dat_clean %>%
-  distinct(doc_uuid, .keep_all = TRUE) %>% 
-  group_by(sentiment) %>%
-  summarise(
-    mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
-  )
-
-ratings_by_sentiment %>% 
-  add_kable()
-```
-
-There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
-
-This indicates that despite critiques and a good chunk of negative opinion units, most overall reviews remain positive.
-
-```{r, include=FALSE}
-ggplot(dat_clean) +
-  geom_jitter(aes(sentiment_num, as.numeric(rating_perc))) +
-  geom_smooth(aes(sentiment_num, as.numeric(rating_perc)), method = "lm")
-```
-
-```{r, include=FALSE}
-ggplot(ratings_by_sentiment) +
-  geom_bar(aes(sentiment, mean_rating), stat = "identity") +
-  coord_cartesian(ylim = c(0.85, 1))
-```
+Even when weighting sentiment by frequency, it seems that Slack is generally doing well overall. Medium or high sentiment categories dominate the reviews in general.
 
 
 **Sub-Ratings**

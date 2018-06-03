@@ -104,7 +104,7 @@ dat %>%
 ## 19 5/5    Pros:  Slack is …          1        4 I don't find to… Negative 
 ## 20 5/5    Pros:  Slack is …          1        4 The price might… Negative 
 ## # ... with 5 more variables: probability_sentiment <dbl>,
-## #   rating_perc <chr>, sub_ratings_split <list>, category <chr>,
+## #   rating_perc <dbl>, sub_ratings_split <list>, category <chr>,
 ## #   probability_unit <chr>
 ```
 
@@ -157,6 +157,8 @@ dat <- dat %>%
   ) %>%
   ungroup()
 ```
+
+
 
 
 
@@ -221,6 +223,54 @@ sentiment_breakdown <-
 
 We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there 😆.)
 
+
+**Overall ratings**
+
+We might ask how users' overall ratings of the product line up with sentiments assigned to each opinion unit by MonkeyLearn. 
+
+It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.
+
+
+```r
+ratings_by_sentiment <-
+  dat_clean %>%
+  distinct(doc_uuid, .keep_all = TRUE) %>% 
+  group_by(sentiment) %>%
+  summarise(
+    mean_rating = mean(rating_perc, na.rm = TRUE)
+  )
+
+ratings_by_sentiment %>% 
+  add_kable()
+```
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+ <thead>
+  <tr>
+   <th style="text-align:left;"> Sentiment </th>
+   <th style="text-align:right;"> Mean Rating </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> Positive </td>
+   <td style="text-align:right;"> 0.94 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Neutral </td>
+   <td style="text-align:right;"> 0.96 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Negative </td>
+   <td style="text-align:right;"> 0.93 </td>
+  </tr>
+</tbody>
+</table>
+
+There is very little difference in overall ratings of the product across opinion unit sentiments. This indicates that despite critiques (which people are encouraged to think of and express in the Cons section), most overall reviews remain positive.
+
+
+**Sentiment and Category**
 
 What is the interaction between the two main things of interest here, category and sentiment? Let's get a summary of the mean sentiment (based off of our numerical representation of sentiment) for opinion units that have been classified into each category.
 
@@ -431,11 +481,11 @@ NB that "Meh" != "Neutral". These category valences are only meaningful relative
 
 Now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories as we arrange them by different variables while retaining the measure of sentiment per category.
 
-![](analysis_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
 
 This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
-Let's see the frequency with which opinion units are categorized into different topics.
+Let's plot the frequency with which opinion units are categorized into different topics.
 
 
 ```r
@@ -449,10 +499,12 @@ category_freq <-
   left_join(sentiment_by_category) 
 ```
 
-![](analysis_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
+
+There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparraging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
 
 
-Now we can weight the category sentiment by the number of times it occurs in an opinion unit.
+Now we can weight the category sentiment by the number of times it occurs in an opinion unit. This can give us a better idea of the sentiment in the context of how often it's mentioned. This is important because if a category has very low sentiment but its almost never mentioned, it may be less critical to focus on improving than an only mildly badly rated category with a lot of mentions.
 
 
 ```r
@@ -527,54 +579,7 @@ sentiment_by_category_weighted %>%
 
 ![](analysis_files/figure-html/sentiment_by_category_weighted_graph-1.png)<!-- -->
 
-**Overall ratings**
-
-What about overall ratings of the product? How do those line up with sentiments assigned to each opinion unit by MonkeyLearn?
-
-
-```r
-ratings_by_sentiment <-
-  dat_clean %>%
-  distinct(doc_uuid, .keep_all = TRUE) %>% 
-  group_by(sentiment) %>%
-  summarise(
-    mean_rating = mean(rating_perc %>% as.numeric(), na.rm = TRUE)
-  )
-
-ratings_by_sentiment %>% 
-  add_kable()
-```
-
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
- <thead>
-  <tr>
-   <th style="text-align:left;"> Sentiment </th>
-   <th style="text-align:right;"> Mean Rating </th>
-  </tr>
- </thead>
-<tbody>
-  <tr>
-   <td style="text-align:left;"> Negative </td>
-   <td style="text-align:right;"> 0.93 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Neutral </td>
-   <td style="text-align:right;"> 0.96 </td>
-  </tr>
-  <tr>
-   <td style="text-align:left;"> Positive </td>
-   <td style="text-align:right;"> 0.94 </td>
-  </tr>
-</tbody>
-</table>
-
-There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
-
-This indicates that despite critiques and a good chunk of negative opinion units, most overall reviews remain positive.
-
-
-
-
+Even when weighting sentiment by frequency, it seems that Slack is generally doing well overall. Medium or high sentiment categories dominate the reviews in general.
 
 
 **Sub-Ratings**
@@ -878,7 +883,7 @@ dat_tokenized_first_letter <-
 
 And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
 
-![](analysis_files/figure-html/unnamed-chunk-27-1.png)<!-- -->
+![](analysis_files/figure-html/unnamed-chunk-26-1.png)<!-- -->
 
 
 
