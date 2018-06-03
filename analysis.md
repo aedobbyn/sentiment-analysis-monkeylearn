@@ -183,7 +183,7 @@ dat$category %>% factor() %>% levels()
 ## [21] "UI-UX"                           "Web"
 ```
 
-We can see there are some opinion units labeled with the category "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly.
+We can see there are some opinion units labeled with the category "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly. 
 
 
 ```r
@@ -291,7 +291,7 @@ sentiment_by_category <-
 
 Performance-Quality-Reliability gets the lowest average sentiment, whereas General gets the highest.
 
-Next I want to split these mean sentiment ratings into three equal parts and assign those parts valences that describe the mean sentiment for that category. We'll find the tertiles (a word I thought I made up but turns out it's a thing) of the mean sentiments so we can divid them three groups as they relate to each other.
+Next I want to split these mean sentiment ratings into three equal parts and assign those parts valences that describe the mean sentiment for that category. We'll find the tertiles (a word I thought I made up but turns out it's a thing) of the mean sentiments so we can divide them three groups as they relate to each other.
 
 
 ```r
@@ -504,7 +504,7 @@ category_freq <-
 
 ![](analysis_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
 
-There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparraging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
+There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparaging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
 
 
 Now we can weight the category sentiment by the number of times it occurs in an opinion unit. This can give us a better idea of the sentiment in the context of how often it's mentioned. This is important because if a category has very low sentiment but its almost never mentioned, it may be less critical to focus on improving than an only mildly badly rated category with a lot of mentions.
@@ -727,7 +727,7 @@ parsed_subratings_summary %>%
 </table>
 
 
-What's interesting here is that people on average rate each of the four aspects very high. However, when they mention them in reviews the sentiment they attach to them can be much lower. If we take Pricing / Value for Money, for example (which may not actually be analagous concepts but let's roll with it for a minute), the sentiment attached to explicit mentions of the price of the service tend to be negative, though its Value for Money is rated well. I can see two explanations for this. The uninteresting interpretation is that most people use the free version of Slack and so they're getting something for nothing, which is a pretty good value for your money. A slightly more interesting interpretation would be that the "silent majority" on the aspect of pricing actually thinks they're getting a pretty good deal but a vocal minority disagree and that minority are the only ones voicing their dissatisfaction with the pricing model.
+What's interesting here is that people on average rate each of the four aspects very high. However, when they mention them in reviews the sentiment they attach to them can be much lower. If we take Pricing / Value for Money, for example (which may not actually be analogous concepts but let's roll with it for a minute), the sentiment attached to explicit mentions of the price of the service tend to be negative, though its Value for Money is rated well. I can see two explanations for this. The uninteresting interpretation is that most people use the free version of Slack and so they're getting something for nothing, which is a pretty good value for your money. A slightly more interesting interpretation would be that the "silent majority" on the aspect of pricing actually thinks they're getting a pretty good deal but a vocal minority disagree and that minority are the only ones voicing their dissatisfaction with the pricing model.
 
 In any case, you could see this as evidence that it's important to take both the explicit numbers as well as sentiments into account when considering a certain aspect of a product, and as always, the base rates of users' contributions to both.
 
@@ -1139,7 +1139,7 @@ search_for(word = "want") %>%
 
 #### Going Negative
 
-Let's focus on the places where Slack might want to improve. I'll focus on the baddest of the "Bad" categories we found: Performance-Quality-Reliability . Simple word counts can shed some insight into what things people mention the most when they're talking about ths topic in an opinion unit with negative sentiment.
+Let's focus on the places where Slack might want to improve. I'll focus on the baddest of the "Bad" categories we found: Performance-Quality-Reliability . Simple word counts can shed some insight into what things people mention the most when they're talking about this topic in an opinion unit with negative sentiment.
 
 Let's filter our opinion units to just the negative ones that MonkeyLearn classified as being about Performance-Quality-Reliability.
 
@@ -1266,7 +1266,7 @@ dat_tokenized %>%
 
 So even though mobile makes more appearances in negative reviews than the desktop app, it also makes more appearances overall suggesting that maybe its P-Q-R is not more of a problem than desktop after all.
 
-I'd be interested to know here whether people spend more active time on Slack on mobile or desktop. Do they mention mobile more becuase they use it more or simply because the experience is more noteworthy than the desktop experience?
+I'd be interested to know here whether people spend more active time on Slack on mobile or desktop. Do they mention mobile more because they use it more or simply because the experience is more noteworthy than the desktop experience?
 
 <br>
 
@@ -1336,8 +1336,8 @@ category_tfidf_maxes <-
   arrange(category, word)
 
 category_tfidf_maxes %>%
-  select(category, word) %>% 
-  add_kable()
+  select(category, word, tf_idf) %>% 
+  add_kable(round_decimals = FALSE)
 ```
 
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
@@ -1345,116 +1345,144 @@ category_tfidf_maxes %>%
   <tr>
    <th style="text-align:left;"> Category </th>
    <th style="text-align:left;"> Word </th>
+   <th style="text-align:right;"> Tf Idf </th>
   </tr>
  </thead>
 <tbody>
   <tr>
    <td style="text-align:left;"> Attachments-Sharing </td>
    <td style="text-align:left;"> failure </td>
+   <td style="text-align:right;"> 0.0000029 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Calls </td>
    <td style="text-align:left;"> bridges </td>
+   <td style="text-align:right;"> 0.0000350 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Channels </td>
    <td style="text-align:left;"> exciting </td>
+   <td style="text-align:right;"> 0.0000016 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Customer Support </td>
    <td style="text-align:left;"> promised </td>
+   <td style="text-align:right;"> 0.0004014 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Desktop </td>
    <td style="text-align:left;"> impresses </td>
+   <td style="text-align:right;"> 0.0000111 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Ease of Use </td>
    <td style="text-align:left;"> patience </td>
+   <td style="text-align:right;"> 0.0000002 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Emojis </td>
    <td style="text-align:left;"> incomplete </td>
+   <td style="text-align:right;"> 0.0000207 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Emojis </td>
    <td style="text-align:left;"> keyboards </td>
+   <td style="text-align:right;"> 0.0000207 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Feedback-Recommendation </td>
    <td style="text-align:left;"> amazed </td>
+   <td style="text-align:right;"> 0.0000147 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Feedback-Recommendation </td>
    <td style="text-align:left;"> revolutionized </td>
+   <td style="text-align:right;"> 0.0000147 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> General </td>
    <td style="text-align:left;"> enjoying </td>
+   <td style="text-align:right;"> 0.0000005 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Groups </td>
    <td style="text-align:left;"> war </td>
+   <td style="text-align:right;"> 0.0000049 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Integrations </td>
    <td style="text-align:left;"> obstacle </td>
+   <td style="text-align:right;"> 0.0000021 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Messages </td>
    <td style="text-align:left;"> immortal </td>
+   <td style="text-align:right;"> 0.0000029 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Mobile </td>
    <td style="text-align:left;"> billed </td>
+   <td style="text-align:right;"> 0.0000065 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Mobile </td>
    <td style="text-align:left;"> deploys </td>
+   <td style="text-align:right;"> 0.0000065 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Mobile </td>
    <td style="text-align:left;"> integrable </td>
+   <td style="text-align:right;"> 0.0000065 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Mobile </td>
    <td style="text-align:left;"> notifies </td>
+   <td style="text-align:right;"> 0.0000065 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Notifications </td>
    <td style="text-align:left;"> buzz </td>
+   <td style="text-align:right;"> 0.0000119 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Other </td>
    <td style="text-align:left;"> vibrant </td>
+   <td style="text-align:right;"> 0.0000108 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Performance-Quality-Reliability </td>
    <td style="text-align:left;"> disturbs </td>
+   <td style="text-align:right;"> 0.0000059 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Pricing </td>
    <td style="text-align:left;"> imposes </td>
+   <td style="text-align:right;"> 0.0000075 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Purpose </td>
    <td style="text-align:left;"> blame </td>
+   <td style="text-align:right;"> 0.0000033 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Search </td>
    <td style="text-align:left;"> granted </td>
+   <td style="text-align:right;"> 0.0000377 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Search </td>
    <td style="text-align:left;"> usefulness </td>
+   <td style="text-align:right;"> 0.0000377 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> UI-UX </td>
    <td style="text-align:left;"> disappointment </td>
+   <td style="text-align:right;"> 0.0000133 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> Web </td>
    <td style="text-align:left;"> fitting </td>
+   <td style="text-align:right;"> 0.0002740 </td>
   </tr>
 </tbody>
 </table>
@@ -1464,16 +1492,17 @@ category_tfidf_maxes %>%
 
 
 
-This kind of analysis can give us a sense of what people are actually saying and allows the humans to get a feel for where the pain points are and what could be improved.
+Of course, these aren't the words that people use most often when talking about each of these categories: they're the ones they use most often when talking about a category *relative* to the words they use when talking about all other categories. That might be exactly what we're looking for if we want to cut through the aggregate and hone in on the specific.
+
+In general, the analysis of the words people use when talking about certain categories can give us a sense of what people are actually saying and allows the humans to get a feel for where the pain points are and what could be improved.
 
 <br>
 
 ## Wrap-Up
 
-Here we've built a relatively straightforward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. 
+Here we've built a relatively straightforward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. What's also nice about this approach is, if we're Slack and interested the ways in which a competitor's ratings and reviews differ from ours, we can reuse everything we've done here and simply substitute in a different URL to compare another product's reviews to ours.
 
-This is an area where companies can compare their own metrics to the same data scraped from reviews of other companies and trained using the same or very similar modules.
-
+Human-generated text data is inherently fuzzy and interesting to probe through. Piles of it, though, can be daunting to extract any actionable insights out of. MonkeyLearn provides a way to identify variables that are both nameable and account for a lot of the variance in our data -- a sort of interpretable PCA for text data. That means less time on the modeling treadmill and more time analyzing.
 
 Thanks and happy coding!
 
