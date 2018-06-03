@@ -35,8 +35,42 @@ library(glue)
 library(knitr)
 library(dobtools)
 library(tidytext)
+library(kableExtra)
+```
 
+
+```{r styles}
 pal <- wesanderson::wes_palette("Rushmore1")
+
+round_dec <- function(x, n_dec = 3) {
+  if (is.numeric(x)) {
+    x <- x %>% round(digits = 2)
+  } 
+  x
+}
+
+add_kable <- function(df, round_decimals = TRUE, 
+                      replace_na = FALSE, capitalize = TRUE, ...) {
+  
+  if (round_decimals == TRUE) {
+    df <- df %>% 
+      map_dfc(round_dec)
+  }
+  
+  if (replace_na == TRUE) {
+    df <- 
+      df %>% dobtools::replace_na_df()
+  }
+  
+  if (capitalize == TRUE) {
+    df <- 
+      df %>% dobtools::cap_df()
+  }
+  
+  df %>% 
+    kable() %>% 
+    kable_styling(full_width = F)
+}
 ```
 
 
@@ -117,7 +151,7 @@ dat$category %>% factor() %>% levels()
 
 We can see there are some opinion units labeled with the category "None". It's tough to know how to interpret these, so we can filter out these rows in a new `dat_clean` dataframe. We'll also filter out low-probability sentiments and categories -- anything that the classifier is less than 55% sure is classified correctly.
 
-```{r}
+```{r dat_clean}
 probability_cutoff <- 0.55
 
 dat_clean <-
@@ -134,7 +168,7 @@ After cleaning, we've got `r length(unique(dat_clean$doc_uuid))` unique opinion 
 
 Now let's get the lay of the land by seeing what the breakdown of sentiments is overall.
 
-```{r}
+```{r sentiment_breakdown}
 sentiment_breakdown <-
   dat_clean %>%
   group_by(sentiment) %>%
@@ -145,11 +179,10 @@ sentiment_breakdown <-
     total = sum(by_sentiment),
     sentiment_prop = by_sentiment / total
   )
-
 ```
 
 
-```{r, echo=FALSE}
+```{r sentiment_breakdown_graph, echo=FALSE}
 ggplot(sentiment_breakdown) +
   geom_bar(aes(sentiment, sentiment_prop, fill = sentiment), position = "dodge", stat = "identity") +
   geom_text(aes(sentiment, sentiment_prop + 0.03, label = paste0(round(sentiment_prop * 100, digits = 2), "%")),
@@ -183,7 +216,7 @@ sentiment_by_category <-
 
 Next I want to split these mean sentiment ratings into three equal parts and assign those parts valences that describe the mean sentiment for that category. We'll find the tertiles (a word I thought I made up but turns out it's a thing) of the mean sentiments so we can divid them three groups as they relate to each other.
 
-```{r}
+```{r sentiment_by_category_summary}
 tertiles <- c(
     sentiment_by_category$mean_sentiment %>% quantile(1/3),
     sentiment_by_category$mean_sentiment %>% quantile(2/3)
@@ -194,10 +227,12 @@ sentiment_by_category_summary <-
          value = tertiles) 
 
 sentiment_by_category_summary %>% 
-  kable()
+  add_kable() 
 ```
 
-We'll use these tertiles as the bounds for assigning valences.
+
+We'll use these tertiles as the bounds for assigning valences. 
+
 
 ```{r}
 bad_sentiment_upper_bound <- 
@@ -219,7 +254,7 @@ sentiment_by_category <-
   )
 
 sentiment_by_category %>%
-  kable()
+  add_kable()
 
 sentiment_valence_order <- c("Good", "Meh", "Bad")
 
@@ -227,7 +262,10 @@ sentiment_by_category$sentiment_valence <-
   sentiment_by_category$sentiment_valence %>% fct_relevel(sentiment_valence_order)
 ```
 
-And now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories by arranging them by different variables.
+
+NB that "Meh" != "Neutral". These category valences are only meaningful relative to one another because categories tend to be rated positively on the whole (`r mean(sentiment_by_category$mean_sentiment)`) on average. That means that even the lower bound of "Meh", `r bad_sentiment_upper_bound` exceeds Neutral, or 0.
+
+Now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories as we arrange them by different variables while retaining the measure of sentiment per category.
 
 ```{r, echo=FALSE}
 ggplot(sentiment_by_category) +
@@ -239,7 +277,7 @@ ggplot(sentiment_by_category) +
   coord_flip()
 ```
 
-This plot is useful, but it doesn't tell us anything about how often people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
+This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
 Let's see the frequency with which opinion units are categorized into different topics.
 
@@ -278,11 +316,11 @@ sentiment_by_category_weighted <-
 
 sentiment_by_category_weighted %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
 
-```{r, echo=FALSE}
+```{r sentiment_by_category_weighted_graph, echo=FALSE}
 ggplot(sentiment_by_category_weighted) +
   geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment,
                fill = factor(sentiment_valence)), stat = "identity") +
@@ -307,7 +345,7 @@ ratings_by_sentiment <-
   )
 
 ratings_by_sentiment %>% 
-  kable()
+  add_kable()
 ```
 
 There is very little difference in overall ratings of the product. (It's important to remember that there is a one:many relationship between ratings and opinion units here; each review gets a at most single rating, but reviews are later parceled into multiple opinions.)
@@ -369,8 +407,7 @@ parsed_subratings_summary <-
   )
 
 parsed_subratings_summary %>%
-  dobtools::cap_df() %>%
-  kable()
+  add_kable()
 ```
 
 
@@ -383,11 +420,14 @@ parsed_subratings_summary$alias <- c("Customer Support", "Ease of Use", "General
 parsed_subratings_summary %>%
   left_join(sentiment_by_category,
     by = c("alias" = "category")
-  )
+  ) %>% 
+  add_kable()
 ```
 
 
+What's interesting here is that people on average rate each of the four aspects very high. However, when they mention them in reviews the sentiment they attach to them can be much lower. If we take Pricing / Value for Money, for example (which may not actually be analagous concepts but let's roll with it for a minute), the sentiment attached to explicit mentions of the price of the service tend to be negative, though its Value for Money is rated well. I can see two explanations for this. The uninteresting interpretation is that most people use the free version of Slack and so they're getting something for nothing, which is a pretty good value for your money. A slightly more interesting interpretation would be that the "silent majority" on the aspect of pricing actually thinks they're getting a pretty good deal but a vocal minority disagree and that minority are the only ones voicing their dissatisfaction with the pricing model.
 
+In any case, you could see this as evidence that it's important to take both the explicit numbers as well as sentiments into account when considering a certain aspect of a product, and as always, the base rates of users' contributions to both.
 
 
 <br>
@@ -397,7 +437,24 @@ parsed_subratings_summary %>%
 
 Now that we have classifications for each opinion units, we can see how the individual words in opinion units map to the sentiment and category classification they were assigned, and maybe gain some more granular insight about what people like and dislike about the product.
 
-The [`tidytext`](https://github.com/juliasilge/tidytext) package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". My helper [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R) mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
+The [`tidytext`](https://github.com/juliasilge/tidytext) package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". 
+
+I add a few of our own stopwords that come up so often they're also essentially meaningless for most of our purposes.
+
+```{r}
+stop_words <- 
+  stop_words %>% 
+  bind_rows(
+    tibble(
+      word = c("slack", "pros", "cons", "overall", "comments"),
+      lexicon = rep("ours", length(word))
+    )
+  )
+```
+
+
+A helper, [`dobtools::find_nums()`](https://github.com/aedobbyn/dobtools/blob/master/R/find_nums.R), mutates on a couple columns: one for whether the word in question is a number (i.e. can be converted to type numeric) and one for whether the word contains a number. If `is_num` is TRUE, then `contains_num` is also always TRUE.
+
 
 ```{r}
 dat_tokenized <-
@@ -458,7 +515,7 @@ lm(
 ) %>%
   summary() %>%
   tidy() %>% 
-  kable()
+  add_kable()
 ```
 
 Yes -- words with more positive sentiments tend to occur in more positive opinion units.
@@ -510,22 +567,23 @@ ggplot(dat_tokenized_first_letter) +
 ```
 
 
-What about the statistical relationship?
-
 ```{r}
-lm(
-  data = dat_tokenized_first_letter %>% drop_na(first_letter_num, score_sentiment),
-  first_letter_num ~ score_sentiment
-) %>%
+first_letter_lm <- 
+  lm(
+    data = dat_tokenized_first_letter %>% drop_na(first_letter_num, score_sentiment),
+    first_letter_num ~ score_sentiment
+  ) %>%
   summary() %>%
   tidy() %>% 
-  kable()
+  map(round_dec)
 ```
 
-Not significant, as we might expect.
+(In case you're curious, the statistical relationship isn't significant either, as we'd expect, *b = `r first_letter_lm$estimate[2]`, p = `r first_letter_lm$p.value[2]`*.)
 
 
 <br>
+
+### Searching for certain phrases
 
 ```{r, echo=FALSE}
 replace_y <- function(x, replacement = NA_character_) {
@@ -554,7 +612,8 @@ category_reg <-
 We can make something reusable like:
 
 ```{r}
-search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE) {
+search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE,
+                       keep_col = FALSE) {
   word_capped <-
     dobtools::simple_cap(word)
 
@@ -581,19 +640,24 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
         unique() %>%
         str_c(collapse = ", ")
     )
+  
+  if (keep_col == FALSE) {
+    out <- out %>% 
+      select(-!!q_col)
+  }
 
   return(out)
 }
 ```
 
 
-We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to.
+We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to. By default we won't keep the original opinion unit (when `keep_col = FALSE`) to save space but I'll put it in the first one so we can see how `search_for` works.
 
 ```{r}
-search_for(word = "love", append_the = TRUE) %>%
+search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
   dobtools::replace_na_df() %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
 By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
@@ -603,7 +667,7 @@ search_for(word = "use") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
 
@@ -612,9 +676,64 @@ search_for(word = "want") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
+
+
+#### Going Negative
+
+Let's focus on the places where Slack might want to improve. I'll focus on the baddest of the "Bad" categories we found: Performance-Quality-Reliability . Simple word counts can shed some insight into what things people mention the most when they're talking about ths topic in an opinion unit with negative sentiment.
+
+Let's filter our opinion units to just the negative ones that MonkeyLearn classified as being about Performance-Quality-Reliability.
+
+```{r}
+pqr_negative <-
+  dat_clean %>%
+  filter(category == "Performance-Quality-Reliability" &
+    sentiment == "Negative")
+```
+
+Next let's count up the number of times each unique word appears and take a look at the top few.
+
+```{r}
+pqr_complaints <-
+  pqr_negative %>%
+  unnest_tokens(word, content) %>%
+  filter(category == "Performance-Quality-Reliability") %>%
+  anti_join(stop_words, by = "word") %>%
+  count(word, sort = TRUE)
+
+pqr_complaints %>% 
+  head() %>% 
+  add_kable()
+```
+
+A reasonable question to ask might be: is the desktop app or mobile app mentioned more in P-Q-R complaints?
+ 
+```{r}
+pqr_complaints %>%
+  filter(word %in% c("desktop", "mobile")) %>% 
+  arrange(desc(n)) %>% 
+  add_kable()
+```
+
+Okay, so it seems like mobile is more of a problem.
+
+How does that compare to the *base rate* of the mentions of desktop and mobile across all opinion units?
+
+```{r}
+dat_tokenized %>%
+  filter(word %in% c("desktop", "mobile")) %>%
+  group_by(word) %>%
+  count() %>% 
+  arrange(desc(n)) %>% 
+  add_kable()
+```
+
+So even though mobile makes more appearances in negative reviews than the desktop app, it also makes more appearances overall suggesting that maybe its P-Q-R is not more of a problem than desktop after all.
+
+I'd be interested to know here whether people spend more active time on Slack on mobile or desktop. Do they mention mobile more becuase they use it more or simply because the experience is more noteworthy than the desktop experience?
 
 
 
@@ -681,8 +800,8 @@ category_tfidf_maxes <-
   arrange(category, word)
 
 category_tfidf_maxes %>%
-  dobtools::cap_df() %>%
-  kable()
+  select(category, word) %>% 
+  add_kable()
 ```
 
 
@@ -710,62 +829,19 @@ sentiment_tfidf_maxes <-
   arrange(sentiment, word)
 
 sentiment_tfidf_maxes %>%
-  dobtools::cap_df() %>%
-  kable()
+  add_kable()
 ```
 
 
-
-
-#### Going Negative
-
-Let's focus on the places where Slack might want to improve. Pricing is more self-explanatory, so I'll focus on Performance-Quality-Reliability and Notifications.
-
-
-```{r}
-problem_categories <-
-  dat_clean %>%
-  filter(category %in% c("Performance-Quality-Reliability", "Notifications") &
-    sentiment == "Negative")
-```
-
-
-```{r}
-pqr_complaints <-
-  problem_categories %>%
-  mutate(review_num = row_number()) %>%
-  unnest_tokens(word, content) %>%
-  filter(category == "Performance-Quality-Reliability") %>%
-  anti_join(stop_words, by = "word") %>%
-  count(word, sort = TRUE)
-```
-
-Is the desktop app or mobile app mentioned more in P-Q-R complaints?
- 
-```{r}
-pqr_complaints %>%
-  filter(word %in% c("desktop", "mobile"))
-```
-
-
-How does that compare to the base rate of the mentions of desktop and mobile?
-
-```{r}
-dat_tokenized %>%
-  filter(word %in% c("desktop", "mobile")) %>%
-  group_by(word) %>%
-  count()
-```
-
-So interestingly, even though mobile is mentioned more often than desktop in reviews, most of the P-Q-R complaints seem to be about the desktop app. 
-
-
-This is an area where companies can compare their own metrics to the same data scraped from reviews of other companies and trained using the same or very similar modules.
+This kind of analysis can give us a sense of what people are actually saying and allows the humans to get a feel for where the pain points are and what could be improved.
 
 
 ## Wrap-Up
 
 Here we've built a relatively straightforward pipeline for an analysis of web data. We grab and clean our raw data, feed it to MonkeyLearn for extraction and classification, and then analyze the results. MonkeyLearn allows us to abstract out the machine learning and plug into a simple and reliable API. 
+
+This is an area where companies can compare their own metrics to the same data scraped from reviews of other companies and trained using the same or very similar modules.
+
 
 Thanks and happy coding!
 

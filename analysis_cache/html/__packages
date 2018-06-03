@@ -17,3 +17,4 @@ glue
 dobtools
 tidytext
 bindrcpp
+kableExtra

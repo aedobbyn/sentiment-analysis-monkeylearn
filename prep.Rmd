@@ -57,6 +57,13 @@ library(glue)
 library(knitr)
 library(dobtools)
 library(tidytext)
+library(kableExtra)
+
+add_kable <- function(df) {
+  df %>% 
+    add_kable() %>% 
+    kable_styling(full_width = F)
+}
 ```
 
 
@@ -277,7 +284,7 @@ get_ratings_and_content(
   url = slack_full_urls[10],
   review_range = 1:3
 ) %>%
-  kable()
+  add_kable()
 ```
 
 
@@ -314,7 +321,7 @@ And now we can check out what we've got:
 ```{r}
 all_reviews_slack %>%
   head() %>%
-  kable()
+  add_kable()
 ```
 
 
@@ -455,7 +462,7 @@ Let's take a peek at our first 10 rows.
 ```{r}
 reviews_with_subratings_unnested %>%
   slice(1:10) %>%
-  kable()
+  add_kable()
 ```
 
 Cool so in the `_nested` version of our data we've got one row per review with a nested `sub_ratings_split` column, and in the `_unnested` version we've got one as many rows per review as there are sub-ratings. We can still tell which review they each belong to because each has a unique `page_num` and `review_num` combination.

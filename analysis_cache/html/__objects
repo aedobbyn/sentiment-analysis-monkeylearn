@@ -1,48 +1,54 @@
-unnamed-chunk-1	pal
+unnamed-chunk-1	
 source_in	all_reviews_slack	dat	data_dir	reviews_with_subratings_nested	reviews_with_subratings_unnested
 unnamed-chunk-2	
 unnamed-chunk-3	dat	uuids
 unnamed-chunk-4	
 numerise_sentiment	dat
 unnamed-chunk-5	
-unnamed-chunk-6	dat_clean	probability_cutoff
-unnamed-chunk-7	sentiment_breakdown
-unnamed-chunk-8	
-unnamed-chunk-9	sentiment_by_category_summary	tertiles
-unnamed-chunk-10	bad_sentiment_upper_bound	good_sentiment_lower_bound	sentiment_by_category	sentiment_valence_order
-unnamed-chunk-11	
-unnamed-chunk-12	category_freq
+unnamed-chunk-6	bad_sentiment_upper_bound	good_sentiment_lower_bound	sentiment_by_category	sentiment_valence_order	.analysis_cache/html/unnamed-chunk-6_711294631a3c17e95b5baaa4fb3f3f78_meta
+unnamed-chunk-7	
+unnamed-chunk-8	category_freq
+unnamed-chunk-9	
+unnamed-chunk-10	sentiment_by_category_weighted	.analysis_cache/html/unnamed-chunk-10_1fb6dbcee58f834cc159afb38ad3f5ce_meta
+unnamed-chunk-11	ratings_by_sentiment	.analysis_cache/html/unnamed-chunk-11_b1d7fdd941b5818198c793ad4a0641ed_meta
+unnamed-chunk-12	
 unnamed-chunk-13	
-unnamed-chunk-14	sentiment_by_category_weighted
-unnamed-chunk-15	
-unnamed-chunk-16	ratings_by_sentiment
-unnamed-chunk-17	
-unnamed-chunk-18	
-unnamed-chunk-19	subrated_dat
-unnamed-chunk-20	parsed_subratings
-unnamed-chunk-21	parsed_subratings_summary
-unnamed-chunk-22	parsed_subratings_summary
-unnamed-chunk-23	dat_tokenized
-unnamed-chunk-24	
-unnamed-chunk-25	
-unnamed-chunk-26	dat_tokenized
-unnamed-chunk-27	dat_tokenized_unnested
-unnamed-chunk-28	
-unnamed-chunk-29	assign_number	try_assign_number
-unnamed-chunk-30	dat_tokenized_first_letter
-unnamed-chunk-31	
-unnamed-chunk-32	
-unnamed-chunk-33	replace_y
-unnamed-chunk-34	category_reg
-unnamed-chunk-35	search_for
-unnamed-chunk-36	
-unnamed-chunk-37	
-unnamed-chunk-38	
+unnamed-chunk-14	subrated_dat
+unnamed-chunk-15	parsed_subratings
+unnamed-chunk-16	parsed_subratings_summary	.analysis_cache/html/unnamed-chunk-16_881addb1ed6448c940009fec94c35f90_meta
+unnamed-chunk-17	parsed_subratings_summary	.analysis_cache/html/unnamed-chunk-17_e661cd747032d220b3aa1794d63e55f7_meta
+unnamed-chunk-18	stop_words
+unnamed-chunk-19	dat_tokenized
+unnamed-chunk-20	
+unnamed-chunk-21	
+unnamed-chunk-22	dat_tokenized
+unnamed-chunk-23	dat_tokenized_unnested
+unnamed-chunk-24	.analysis_cache/html/unnamed-chunk-24_9fdfa2265ef65628d239c9c2bb2b736a_meta
+unnamed-chunk-25	assign_number	try_assign_number
+unnamed-chunk-26	dat_tokenized_first_letter
+unnamed-chunk-27	
+unnamed-chunk-28	first_letter_lm
+unnamed-chunk-29	replace_y
+unnamed-chunk-30	category_reg
+unnamed-chunk-31	search_for
+unnamed-chunk-32	.analysis_cache/html/unnamed-chunk-32_87d6ed6ffe87fd7de2e324cee9c15065_meta
+unnamed-chunk-33	.analysis_cache/html/unnamed-chunk-33_40443b7442cd6dd975167133a2c4a6a5_meta
+unnamed-chunk-34	.analysis_cache/html/unnamed-chunk-34_d40e0b180864512c35e2b2ad9b0c0d6d_meta
+unnamed-chunk-35	pqr_negative
+unnamed-chunk-36	pqr_complaints	.analysis_cache/html/unnamed-chunk-36_e6633f53fad8e2368a2601f061922fc5_meta
+unnamed-chunk-37	.analysis_cache/html/unnamed-chunk-37_72149f1708f31071bad2348f435e1d94_meta
+unnamed-chunk-38	.analysis_cache/html/unnamed-chunk-38_632d76a5b198ebd5457ad971c0a92756_meta
 unnamed-chunk-39	category_tfidf
-unnamed-chunk-40	category_tfidf_maxes
-unnamed-chunk-41	sentiment_tfidf	sentiment_tfidf_maxes
-unnamed-chunk-42	problem_categories
+unnamed-chunk-40	category_tfidf_maxes	.analysis_cache/html/unnamed-chunk-40_72a1db045ec3bd46731bf291b93f603d_meta
+unnamed-chunk-41	sentiment_tfidf	sentiment_tfidf_maxes	.analysis_cache/html/unnamed-chunk-41_4f67d41af0041c110e540030bf7e774c_meta
+unnamed-chunk-42	pqr_complaints
 sentiment_by_category	sentiment_by_category
-unnamed-chunk-43	pqr_complaints
+unnamed-chunk-43	
 unnamed-chunk-44	
 unnamed-chunk-45	
+sentiment_by_category_weighted_graph	
+dat_clean	dat_clean	probability_cutoff
+sentiment_breakdown	sentiment_breakdown
+sentiment_breakdown_graph	
+sentiment_by_category_summary	sentiment_by_category_summary	tertiles	.analysis_cache/html/sentiment_by_category_summary_4216fd02a2aa79da874dc8faf67ecefa_meta
+styles	add_kable	pal	round_dec
