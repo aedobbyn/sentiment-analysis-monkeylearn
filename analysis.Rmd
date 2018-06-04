@@ -1,5 +1,6 @@
 ---
 title: "MonkeyLearn Sentiment Analysis: Analysis"
+author: Amanda Dobbyn
 output:
   html_document:
     keep_md: true
@@ -50,7 +51,8 @@ round_dec <- function(x, n_dec = 3) {
 }
 
 add_kable <- function(df, round_decimals = TRUE, 
-                      replace_na = FALSE, capitalize = TRUE, ...) {
+                      replace_na = FALSE, capitalize = TRUE,
+                      add_scrollbox = FALSE, ...) {
   
   if (round_decimals == TRUE) {
     df <- df %>% 
@@ -67,9 +69,16 @@ add_kable <- function(df, round_decimals = TRUE,
       df %>% dobtools::cap_df()
   }
   
-  df %>% 
+  df <- df %>% 
     kable() %>% 
     kable_styling(full_width = F)
+  
+  if (add_scrollbox == TRUE) {
+    df <- df %>% 
+      scroll_box(height = "500px")
+  }
+  
+  df
 }
 ```
 
@@ -96,8 +105,11 @@ We've got data! `r emo::ji("tada") ` Let's take a look at it.
 
 ```{r, dependson="source_in"}
 dat %>%
-  slice(1:20)
+  slice(1:50) %>% 
+  add_kable(capitalize = FALSE, add_scrollbox = TRUE) 
 ```
+
+<br>
 
 Since there are multiple rows per review, we'll want a unique identifier for each review. Each `page_num, review_num` combination represents a unique review. We could hash these two values but since we have the benefit of knowing that the reviews happen in chronological order, it seems better to number them, starting with 1 for our oldest review.
 
@@ -188,6 +200,7 @@ sentiment_breakdown <-
   )
 ```
 
+<br>
 
 ```{r sentiment_breakdown_graph, echo=FALSE}
 ggplot(sentiment_breakdown) +
@@ -205,6 +218,7 @@ ggplot(sentiment_breakdown) +
   scale_fill_manual(values = pal)
 ```
 
+<br>
 
 We can see there are very few reviews that have a Neutral sentiment, which is useful for us. It's easier to draw conclusions about the strengths and weaknesses of a product when most of the feedback is either definitively positive or negative. (That could also be a reflection of the tendency of reviewers to feel more strongly about the product they're reviewing than the general user base. But whether or not these reviews are an unbiased reflection of most users' true feelings about the product is neither here nor there `r emo::ji("laughing")`.)
 
@@ -290,7 +304,7 @@ sentiment_by_category <-
   )
 
 sentiment_by_category %>%
-  add_kable()
+  add_kable(add_scrollbox = TRUE)
 
 sentiment_valence_order <- c("Good", "Meh", "Bad")
 
@@ -299,9 +313,11 @@ sentiment_by_category$sentiment_valence <-
 ```
 
 
-NB that "Meh" != "Neutral". These category valences are only meaningful relative to one another because categories tend to be rated positively on the whole (`r mean(sentiment_by_category$mean_sentiment)`) on average. That means that even the lower bound of "Meh", `r bad_sentiment_upper_bound` exceeds Neutral, or 0.
+NB that "Meh" != "Neutral". These category valences are only meaningful relative to one another because categories tend to be rated positively on the whole (`r round(mean(sentiment_by_category$mean_sentiment), digits=2)`) on average. That means that even the lower bound of "Meh", `r round(bad_sentiment_upper_bound, digits = 2)` exceeds Neutral, which we've coded as 0.
 
 Now we can colo(u)r the bars of our plot with those valences. This will be useful when we shake up the order of the categories as we arrange them by different variables while retaining the measure of sentiment per category.
+
+<br> 
 
 ```{r, echo=FALSE}
 ggplot(sentiment_by_category) +
@@ -312,6 +328,8 @@ ggplot(sentiment_by_category) +
   scale_fill_manual(values = pal) +
   coord_flip()
 ```
+
+<br>
 
 This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
 
@@ -328,6 +346,8 @@ category_freq <-
   left_join(sentiment_by_category) 
 ```
 
+<br>
+
 ```{r, echo=FALSE}
 ggplot(category_freq) +
   geom_bar(aes(fct_reorder(category, n_opinion_units), n_opinion_units,
@@ -338,6 +358,8 @@ ggplot(category_freq) +
   scale_fill_manual(values = pal) +
   coord_flip()
 ```
+
+<br>
 
 There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparaging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
 
@@ -353,10 +375,11 @@ sentiment_by_category_weighted <-
   arrange(desc(weighted_sentiment))
 
 sentiment_by_category_weighted %>%
-  head() %>%
-  add_kable()
+  add_kable(add_scrollbox = TRUE)
 ```
 
+
+<br>
 
 ```{r sentiment_by_category_weighted_graph, echo=FALSE}
 ggplot(sentiment_by_category_weighted) +
@@ -369,6 +392,8 @@ ggplot(sentiment_by_category_weighted) +
   coord_flip()
 ```
 
+<br>
+
 Even when weighting sentiment by frequency, it seems that Slack is generally doing well overall. Medium or high sentiment categories dominate the reviews in general.
 
 <br>
@@ -377,21 +402,26 @@ Even when weighting sentiment by frequency, it seems that Slack is generally doi
 
 We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, subratings are these things:
 
-![](./img/sub_ratings.jpg)
+<br>
 
-First we have to unnest our subratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in..
+<img src="./img/sub_ratings.jpg" alt="sub_ratings" height="30px" align="middle">
 
-```{r, include=FALSE}
-subrated_dat <-
-  dat_clean %>%
-  unnest(sub_ratings_split) %>%
-  mutate(
-    subrating_rating = subrating_rating %>% as.numeric()
-  ) %>%
-  select(doc_uuid, subrating_title, subrating_rating, sentiment, sentiment_num, rating_perc, opinion_unit)
+<br>
+
+First we have to unnest our subratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in, e.g.,
+
+```{r}
+all_reviews_slack$sub_ratings %>% sample(2)
 ```
 
-We'll want to parse these "4/5", "5/5", etc. strings into numbers we can work with, in the same way we did the overall ratings.
+We transformed that into a nested list column:
+
+```{r}
+dat$sub_ratings_split %>% sample(2)
+```
+
+
+We'll now want to parse these "4/5", "5/5", etc. strings of `subrating_rating`s into numbers we can work with, in the same way we did the overall ratings.
 
 ```{r}
 parsed_subratings <-
@@ -534,17 +564,21 @@ lm(
 
 Words with more positive sentiments tend to occur in more positive opinion units but as we can see from the effect size and the density plot below, the difference is not dramatic. (I use a density plot instead of a histogram to account for the difference in the number of total words in Negative and Positive opinion units, since there are about 3 times as many Positive opinion units as negative ones.)
 
+<br>
 
-```{r}
+```{r, echo=FALSE}
 ggplot(dat_tokenized_unnested) +
-  geom_density(aes(score_sentiment, fill = sentiment), adjust = 3) +
-  facet_wrap(~ sentiment) +
+  geom_density(aes(score_sentiment, fill = 
+                     fct_relevel(sentiment, c("Positive", "Neutral", "Negative"))), 
+               adjust = 3) +
+  facet_wrap(~ fct_relevel(sentiment, c("Positive", "Neutral", "Negative"))) +
   ggtitle("Word sentiment distribution by document sentiment") +
-  labs(x = "Word sentiment", y = "Density") +
-  theme_minimal()
+  labs(x = "Word sentiment", y = "Density", fill = "Sentiment") +
+  theme_minimal() +
+  scale_fill_manual(values = pal)
 ```
 
-
+<br>
 
 As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
 
@@ -574,11 +608,11 @@ dat_tokenized_first_letter <-
   )
 ```
 
-And then plot the word's sentiment as scored on the `AFINN` scale. The dashed horizontal line represents the mean sentiment score for words in our data set.
+And then plot the word's sentiment as scored on the `AFINN` scale. The black dashed horizontal line represents the mean sentiment score for words in our data set and dashed blue is the linear trendline.
+
+<br>
 
 ```{r, echo=FALSE}
-letter_labels <- letters
-
 ggplot(dat_tokenized_first_letter) +
   geom_smooth(aes(first_letter_num, score_sentiment)) +
   geom_smooth(aes(first_letter_num, score_sentiment),
@@ -596,8 +630,9 @@ ggplot(dat_tokenized_first_letter) +
   scale_fill_manual(values = pal)
 ```
 
+<br>
 
-```{r}
+```{r, echo=FALSE}
 first_letter_lm <- 
   lm(
     data = dat_tokenized_first_letter %>% drop_na(first_letter_num, score_sentiment),
@@ -642,8 +677,8 @@ category_reg <-
 We can make something reusable like:
 
 ```{r}
-search_for <- function(df = dat_clean, col = content, word = "love", append_the = FALSE,
-                       keep_col = FALSE) {
+search_for <- function(df = dat_clean, col = content, word, 
+                       append_the = FALSE, keep_col = FALSE) {
   word_capped <-
     dobtools::simple_cap(word)
 
@@ -663,7 +698,7 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
     rowwise() %>%
     mutate(
       phrase = str_extract(!!q_col, glue("(?<={look_for}).+$")) %>%
-        str_replace_all("(?<=\\.).*", ""),
+        str_replace_all("(?<=\\.).*", ""),   # Grab everything from word until following period
       phrase_categories = str_extract_all(phrase, category_reg) %>%
         replace_y() %>%
         as_vector() %>%
@@ -683,35 +718,39 @@ search_for <- function(df = dat_clean, col = content, word = "love", append_the 
 
 We can ask for our word always followed by a "the" so that we know our `phrase` will start with a noun that our `word` is referring to. By default we won't keep the original opinion unit (when `keep_col = FALSE`) to save space but I'll put it in the first one so we can see how `search_for` works.
 
-<em>love</em>
-
 ```{r}
 search_for(word = "love", append_the = TRUE, keep_col = TRUE) %>%
   dobtools::replace_na_df() %>%
-  sample_n(5) %>%
-  add_kable()
+  sample_n(20) %>%
+  add_kable(add_scrollbox = FALSE) %>% 
+  add_header_above(c("love" = 3), italic = TRUE) %>% 
+  scroll_box(height = "500px")
 ```
 
-By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
+<br>
 
-<em>use</em>
+By default we won't append "the" after `word`. We can filter to just opinion units that contain our word and then the name of one of our categories following it.
 
 ```{r}
 search_for(word = "use") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  sample_n(5) %>%
-  add_kable()
+  sample_n(20) %>%
+  add_kable(add_scrollbox = FALSE) %>% 
+  add_header_above(c("use" = 2), italic = TRUE) %>% 
+  scroll_box(height = "500px")
 ```
 
-<em>want</em>
+<br>
 
 ```{r}
 search_for(word = "want") %>%
   drop_na(phrase_categories) %>%
   dobtools::replace_na_df() %>%
-  sample_n(5) %>%
-  add_kable()
+  sample_n(20) %>%
+  add_kable(add_scrollbox = FALSE) %>% 
+  add_header_above(c("want" = 2), italic = TRUE) %>% 
+  scroll_box(height = "500px")
 ```
 
 

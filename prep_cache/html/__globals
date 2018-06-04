@@ -27,4 +27,4 @@ unnamed-chunk-24	write_extraction_batches	opinion_batches_dir	write_batches	df	e
 unnamed-chunk-25	reviews_with_subratings_nested	%>%	write_extraction_batches	write_classification_batches
 unnamed-chunk-26	gather_batches	fls	dir_ls	dir	list_o_batches	map	read_csv	out	%>%	modify_depth	as.character	bind_rows	return
 unnamed-chunk-27	reviews_with_subratings_nested	%>%	write_extraction_batches	opinion_batches_extracted	gather_batches	opinion_batches_dir	rename	probability	write_classification_batches	dat	topic_batches_dir
-styles	pal	wes_palette	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F
+styles	pal	wes_palette	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F	add_scrollbox	scroll_box

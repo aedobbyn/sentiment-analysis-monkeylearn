@@ -1,5 +1,6 @@
 ---
 title: "MonkeyLearn Sentiment Analysis: Prep"
+author: Amanda Dobbyn
 output:
   html_document:
     keep_md: true
@@ -57,39 +58,7 @@ library(kableExtra)
 
 
 
-```r
-pal <- wesanderson::wes_palette("Rushmore1")
 
-round_dec <- function(x, n_dec = 3) {
-  if (is.numeric(x)) {
-    x <- x %>% round(digits = 2)
-  } 
-  x
-}
-
-add_kable <- function(df, round_decimals = TRUE, 
-                      replace_na = FALSE, capitalize = TRUE, ...) {
-  
-  if (round_decimals == TRUE) {
-    df <- df %>% 
-      map_dfc(round_dec)
-  }
-  
-  if (replace_na == TRUE) {
-    df <- 
-      df %>% dobtools::replace_na_df()
-  }
-  
-  if (capitalize == TRUE) {
-    df <- 
-      df %>% dobtools::cap_df()
-  }
-  
-  df %>% 
-    kable() %>% 
-    kable_styling(full_width = F)
-}
-```
 
 
 
@@ -568,16 +537,16 @@ reviews_with_subratings_unnested <-
 ```
 
 
-Let's take a peek at our first 10 rows.
+Let's take a peek at the data.
 
 
 ```r
 reviews_with_subratings_unnested %>%
   slice(1:10) %>%
-  add_kable()
+  add_kable(add_scrollbox = TRUE)
 ```
 
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:500px; "><table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
  <thead>
   <tr>
    <th style="text-align:left;"> Rating </th>
@@ -670,7 +639,9 @@ reviews_with_subratings_unnested %>%
    <td style="text-align:left;"> 3/5 </td>
   </tr>
 </tbody>
-</table>
+</table></div>
+
+<br>
 
 Cool so in the `_nested` version of our data we've got one row per review with a nested `sub_ratings_split` column, and in the `_unnested` version we've got one as many rows per review as there are sub-ratings. We can still tell which review they each belong to because each has a unique `page_num` and `review_num` combination.
 
