@@ -27,4 +27,4 @@ unnamed-chunk-24	write_classification_batches	write_extraction_batches
 unnamed-chunk-25	
 unnamed-chunk-26	gather_batches
 unnamed-chunk-27	
-styles	add_kable	pal	round_dec
+styles	add_kable	pal	pal2	round_dec

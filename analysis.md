@@ -18,63 +18,9 @@ output:
 
 
 
-```r
-library(here)
-library(tidyverse)
-library(rvest)
-library(monkeylearn)
-library(glue)
-library(knitr)
-library(dobtools)
-library(tidytext)
-library(kableExtra)
-library(hrbrthemes)
-```
 
 
 
-```r
-pal <- wesanderson::wes_palette("Rushmore1")
-pal2 <- wesanderson::wes_palette("Moonrise3")
-
-round_dec <- function(x, n_dec = 3) {
-  if (is.numeric(x)) {
-    x <- x %>% round(digits = 2)
-  } 
-  x
-}
-
-add_kable <- function(df, round_decimals = TRUE, 
-                      replace_na = FALSE, capitalize = TRUE,
-                      add_scrollbox = FALSE, ...) {
-  
-  if (round_decimals == TRUE) {
-    df <- df %>% 
-      map_dfc(round_dec)
-  }
-  
-  if (replace_na == TRUE) {
-    df <- 
-      df %>% dobtools::replace_na_df()
-  }
-  
-  if (capitalize == TRUE) {
-    df <- 
-      df %>% dobtools::cap_df()
-  }
-  
-  df <- df %>% 
-    kable() %>% 
-    kable_styling(full_width = F)
-  
-  if (add_scrollbox == TRUE) {
-    df <- df %>% 
-      scroll_box(height = "500px")
-  }
-  
-  df
-}
-```
 
 
 
@@ -1147,9 +1093,9 @@ Now we can colo(u)r the bars of our plot with those valences. This will be usefu
 
 <br>
 
-This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. We might ask, are the categories that often have a negative sentiment categories that people tend to mention often in their reviews, or are they less frequent?
+This plot is useful, but it doesn't tell us anything about how *often* people complain about the aspects of the product that tend to get low sentiment ratings. Are the low-sentiment categories mentioned very frequently or are their mentions few and far between, and maybe limited to a certain segment of the user base? This is potentially an important question when thinkin gabout prioritizing bug fixes and feature improvements.
 
-Let's plot the frequency with which opinion units are categorized into different topics.
+To that end, let's plot the frequency with which opinion units are categorized into different topics.
 
 
 ```r
@@ -1169,7 +1115,7 @@ category_freq <-
 
 <br>
 
-There doesn't seem to be a clear relationship between sentiment and number of mentions. That suggests that people aren't systematically disparaging the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
+From the plot, I can't pick out a clear relationship between sentiment and number of opinion units classified into a topic. That suggests that people aren't systematically bemoaning the low-sentiment categories more than they are praising the high-sentiment categories or vice versa.
 
 
 Now we can weight the category sentiment by the number of times it occurs in an opinion unit. This can give us a better idea of the sentiment in the context of how often it's mentioned. This is important because if a category has very low sentiment but its almost never mentioned, it may be less critical to focus on improving than an only mildly badly rated category with a lot of mentions.
@@ -1361,7 +1307,7 @@ Even when weighting sentiment by frequency, it seems that Slack is generally doi
 
 #### Subratings
 
-We can dig into the explicit ratings of different aspects of the platform and compare them to categories assigned by MonkeyLearn. If you'll recall, subratings are these things:
+What about all those other ratings of different aspects of the platform? It might be useful to compare them to categories assigned to opinon by MonkeyLearn. If you'll recall, subratings are these things:
 
 <br>
 
@@ -1369,7 +1315,9 @@ We can dig into the explicit ratings of different aspects of the platform and co
 
 <br>
 
-First we have to unnest our subratings which until now we've calmly shunted along in the list column we created from the blob of text we got them in, e.g.,
+So they're different beasts than categories, which are assigned at the opinion unit level; sub-ratings represnet a broad judgment of an entire angle of the product.
+
+First we have to unnest our subratings which until now we've quietly shunted along in the list column we created from the blob of text we got them in, e.g.,
 
 
 ```r
@@ -1437,7 +1385,7 @@ parsed_subratings %>%
 ## 5 Ease of Use              5/5                       1.00
 ```
 
-What are the overall mean ratings of each aspect of the platform?
+Now for some averages. What are the overall mean ratings of each aspect of the platform?
 
 
 ```r
@@ -1538,7 +1486,7 @@ parsed_subratings_summary %>%
 </table>
 
 
-What's interesting here is that people on average rate each of the four aspects very high. However, when they mention them in reviews the sentiment they attach to them can be much lower. If we take Pricing / Value for Money, for example (which may not actually be analogous concepts but let's roll with it for a minute), the sentiment attached to explicit mentions of the price of the service tend to be negative, though its Value for Money is rated well. I can see two explanations for this. The uninteresting interpretation is that most people use the free version of Slack and so they're getting something for nothing, which is a pretty good value for your money. A slightly more interesting interpretation would be that the "silent majority" on the aspect of pricing actually thinks they're getting a pretty good deal but a vocal minority disagree and that minority are the only ones voicing their dissatisfaction with the pricing model.
+What's interesting here is that people on average rate each of the four subrating aspects very high. However, when they mention them in reviews the sentiment they attach to them can be much lower. If we take Pricing / Value for Money, for example (which may not actually be analogous concepts but let's roll with it for a minute), the sentiment attached to explicit mentions of the price of the service tend to be negative, though its Value for Money is rated well. I can see two explanations for this. The uninteresting interpretation is that most people use the free version of Slack and so they're getting something for nothing, which is a pretty good value for your money. A slightly more interesting interpretation would be that the "silent majority" on the aspect of pricing actually thinks they're getting a pretty good deal but a vocal minority disagree and that minority are the only ones voicing their dissatisfaction with the pricing model.
 
 In any case, you could see this as evidence that it's important to take both the explicit numbers as well as sentiments into account when considering a certain aspect of a product, and as always, the base rates of users' contributions to both.
 
@@ -1550,9 +1498,11 @@ In any case, you could see this as evidence that it's important to take both the
 
 Now that we have classifications for each opinion units, we can see how the individual words in opinion units map to the sentiment and category classification they were assigned, and maybe gain some more granular insight about what people like and dislike about the product.
 
+#### Unnesting and cleaning
+
 The [`tidytext`](https://github.com/juliasilge/tidytext) package is fantastic for this purpose. We'll use its `unnest_tokens` function to get a long dataframe of all words and then clean them up a bit by filtering out `stop_words` (a dataset included in the package) like "and" and "the". 
 
-I add a few of our own stopwords that come up so often they're also essentially meaningless for most of our purposes.
+I add a few of our own stopwords that come up so often they're also essentially meaningless for most of our purposes. We won't worry about [stemming](https://nlp.stanford.edu/IR-book/html/htmledition/stemming-and-lemmatization-1.html) words here.
 
 
 ```r
@@ -1628,7 +1578,7 @@ dat_tokenized <-
 
 
 
-If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we can unnest our `dat_tokenized_tfidf` dataframe in place of doing any joining.
+If we're interested in doing an analysis of words that belong to opinion units that were tagged with certain categories or sentiments, we're going to need back our measure of each of those, which were labeled at the opinion unit level. Luckily we folded up the rest of our data into list column that can be unnested at any point, so we can unnest our `dat_tokenized_tfidf` dataframe in place of doing any joining.
 
 
 ```r
@@ -1730,7 +1680,7 @@ And then plot the word's sentiment as scored on the `AFINN` scale. The black das
 
 
 
-(In case you're curious, the statistical relationship isn't significant either in a linear model, as we'd expect (*b = 0.04, p = 0.34*).)
+(In case you're curious, the statistical relationship isn't significant either in a linear model, as we'd expect (*\beta = 0.04, p = 0.34*).)
 
 
 <br>
@@ -2140,7 +2090,7 @@ search_for(word = "want") %>%
 
 #### Going Negative
 
-Let's focus on the places where Slack might want to improve. I'll focus on the baddest of the "Bad" categories we found: Performance-Quality-Reliability . Simple word counts can shed some insight into what things people mention the most when they're talking about this topic in an opinion unit with negative sentiment.
+Next let's focus on the places where Slack might want to improve. I'll focus on the baddest of the Bad categories we found: Performance-Quality-Reliability . Simple word counts can shed some insight into what things people mention the most when they're talking about this topic in an opinion unit with negative sentiment.
 
 Let's filter our opinion units to just the negative ones that MonkeyLearn classified as being about Performance-Quality-Reliability.
 
@@ -2152,7 +2102,7 @@ pqr_negative <-
     sentiment == "Negative")
 ```
 
-Next let's count up the number of times each unique word appears and take a look at the top few.
+and count up the number of times each unique word appears and take a look at the top few.
 
 
 ```r
@@ -2164,11 +2114,11 @@ pqr_complaints <-
   count(word, sort = TRUE)
 
 pqr_complaints %>% 
-  head() %>% 
-  add_kable()
+  slice(1:20) %>% 
+  add_kable(add_scrollbox = TRUE)
 ```
 
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<div style="border: 1px solid #ddd; padding: 5px; overflow-y: scroll; height:500px; "><table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
  <thead>
   <tr>
    <th style="text-align:left;"> Word </th>
@@ -2200,10 +2150,66 @@ pqr_complaints %>%
    <td style="text-align:left;"> version </td>
    <td style="text-align:right;"> 122 </td>
   </tr>
+  <tr>
+   <td style="text-align:left;"> channels </td>
+   <td style="text-align:right;"> 109 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> bit </td>
+   <td style="text-align:right;"> 106 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> free </td>
+   <td style="text-align:right;"> 102 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> messages </td>
+   <td style="text-align:right;"> 98 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> chat </td>
+   <td style="text-align:right;"> 89 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> love </td>
+   <td style="text-align:right;"> 83 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> communicate </td>
+   <td style="text-align:right;"> 70 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> teams </td>
+   <td style="text-align:right;"> 69 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> software </td>
+   <td style="text-align:right;"> 68 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> makes </td>
+   <td style="text-align:right;"> 67 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> slow </td>
+   <td style="text-align:right;"> 67 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> company </td>
+   <td style="text-align:right;"> 65 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> email </td>
+   <td style="text-align:right;"> 65 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> conversations </td>
+   <td style="text-align:right;"> 63 </td>
+  </tr>
 </tbody>
-</table>
+</table></div>
 
-A reasonable question to ask might be: is the desktop app or mobile app mentioned more in P-Q-R complaints?
+A reasonable question for the Slack team to ask might be: is the desktop app or mobile app mentioned more in P-Q-R complaints?
  
 
 ```r

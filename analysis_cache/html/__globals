@@ -36,7 +36,7 @@ unnamed-chunk-33	search_for	%>%	replace_na_df	sample_n	add_kable	add_header_abov
 unnamed-chunk-34	search_for	%>%	drop_na	phrase_categories	replace_na_df	sample_n	add_kable	add_header_above	c	scroll_box
 unnamed-chunk-35	search_for	%>%	drop_na	phrase_categories	replace_na_df	sample_n	add_kable	add_header_above	c	scroll_box
 unnamed-chunk-36	pqr_negative	dat_clean	%>%	filter	category	sentiment
-unnamed-chunk-37	pqr_complaints	pqr_negative	%>%	unnest_tokens	word	content	filter	category	anti_join	stop_words	count	head	add_kable
+unnamed-chunk-37	pqr_complaints	pqr_negative	%>%	unnest_tokens	word	content	filter	category	anti_join	stop_words	count	slice	add_kable
 unnamed-chunk-38	pqr_complaints	%>%	filter	word	%in%	c	arrange	desc	n	add_kable
 unnamed-chunk-39	dat_tokenized	%>%	filter	word	%in%	c	group_by	count	arrange	desc	n	add_kable
 unnamed-chunk-40	category_tfidf	dat_tokenized_unnested	%>%	group_by	category	add_count	word	rename	n	ungroup	bind_tf_idf	n_words_this_category	select	tf_idf	opinion_unit	sentiment
@@ -49,6 +49,6 @@ unnamed-chunk-45	dat_tokenized	%>%	filter	word	%in%	c	group_by	count
 sentiment_by_category_weighted_graph	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	factor	sentiment_valence	theme_ipsum	ggtitle	labs	scale_fill_manual	pal	coord_flip
 dat_clean	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
 sentiment_breakdown	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total
-sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_ipsum
+sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_ipsum	scale_fill_manual	pal2
 sentiment_by_category_summary	tertiles	c	sentiment_by_category	mean_sentiment	%>%	quantile	sentiment_by_category_summary	tibble	names	add_kable
 styles	pal	wes_palette	pal2	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F	add_scrollbox	scroll_box

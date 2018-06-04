@@ -13,13 +13,13 @@ output:
     toc: false
 ---
 
-MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/). You can find all of the analysis code as well the code used to generate this document on [GitHub](https://github.com/aedobbyn/sentiment-analysis-monkeylearn).
+MonkeyLearn is a fantastic tool for performing sentiment analyses tailored to a particular use case. In this post I'll give an example of how you might use the `monkeylearn` R package to conduct a seamless sentiment analysis of consumer product reviews. I'll be examining a few thousand reviews of the popular collaboration tool [Slack](https://slack.com/) on the product review site [Capterra](https://www.capterra.com/). You can find all of the analysis code as well the code used to generate this document on [GitHub](https://github.com/aedobbyn/sentiment-analysis-monkeylearn).
 
-I use Slack every day without thinking about the product much. It's pretty feature-rich and can take a minute to find your way around, but for collaboration and communication, I generally find it a useful too. Outside my coworkers' occasional kvetching or delighting over a certain feature (take the `/shrug` shortcut which produces `¯\_(ツ)_/¯`), I don't have any idea what the general user base's experience of the product is.
+I use Slack every day without thinking about the product much. It's pretty feature-rich and can take a minute to find your way around, but for collaboration and communication, I generally find it a useful tooL. Outside of my coworkers' occasional kvetching or delighting over a certain feature (take the `/shrug` shortcut which produces the perenially useful `¯\_(ツ)_/¯`), I don't have any idea what the general user base's experience of the product is.
 
-Which aspects of the product are the most beloved and which most hated (at least among people who take the time to write a review of the product)? 
+If I'm the Slack team and looking for an easy, reliable way to get data about users' feelings about my product, I might turn to online reviews in order to answer some top-of-mind questions. For example, which aspects of the product are the most beloved and which most hated (at least among people who take the time to write a review of the product)? 
 
-If you're the Slack team, these are questions that it would be time-consuming for people to have to extract conclusions about themselves, given that there are north of 4500 reviews and counting. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
+Once you've gathered the data, though, these are questions that would be time-consuming for people to have to extract conclusions about themselves. However, the language that people use to describe things they feel positively and negatively about follow clear enough patterns that a well-trained machine can pick them out with pretty high accuracy. We'll outsource the heavy lifting of building, training, and tweaking a model to MonkeyLearn.
 
 <br>
 
