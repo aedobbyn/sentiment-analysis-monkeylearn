@@ -24,7 +24,7 @@ unnamed-chunk-21	sentiments	%>%	filter	word
 unnamed-chunk-22	dat_tokenized	%>%	select	is_num	contains_num	left_join	sentiments	rename	sentiment	score
 unnamed-chunk-23	dat_tokenized_unnested	dat_tokenized	%>%	unnest
 unnamed-chunk-24	lm	dat_tokenized_unnested	%>%	drop_na	sentiment_num	score_sentiment	summary	tidy	add_kable
-unnamed-chunk-25	ggplot	dat_tokenized_unnested	geom_density	aes	score_sentiment	fct_relevel	sentiment	c	facet_wrap	ggtitle	labs	theme_minimal	scale_fill_manual	pal
+unnamed-chunk-25	ggplot	dat_tokenized_unnested	%>%	filter	sentiment	geom_density	aes	score_sentiment	fct_relevel	c	facet_wrap	ggtitle	labs	theme_minimal	scale_fill_manual	pal2
 unnamed-chunk-26	assign_number	length	l	%in%	letters	n	which	try_assign_number	possibly
 unnamed-chunk-27	dat_tokenized_first_letter	dat_tokenized	%>%	rowwise	mutate	substr	word	try_assign_number	first_letter
 unnamed-chunk-28	ggplot	dat_tokenized_first_letter	geom_smooth	aes	first_letter_num	score_sentiment	scale_x_continuous	letters	geom_hline	mean	ggtitle	labs	theme_bw	scale_fill_manual	pal
@@ -49,6 +49,6 @@ unnamed-chunk-45	dat_tokenized	%>%	filter	word	%in%	c	group_by	count
 sentiment_by_category_weighted_graph	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	factor	sentiment_valence	theme_bw	ggtitle	labs	scale_fill_manual	pal	coord_flip
 dat_clean	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
 sentiment_breakdown	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total
-sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_bw	scale_fill_manual	pal
+sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_bw	scale_fill_manual	pal2
 sentiment_by_category_summary	tertiles	c	sentiment_by_category	mean_sentiment	%>%	quantile	sentiment_by_category_summary	tibble	names	add_kable
-styles	pal	wes_palette	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F	add_scrollbox	scroll_box
+styles	pal	wes_palette	pal2	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F	add_scrollbox	scroll_box

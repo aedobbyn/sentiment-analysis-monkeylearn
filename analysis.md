@@ -34,6 +34,7 @@ library(kableExtra)
 
 ```r
 pal <- wesanderson::wes_palette("Rushmore1")
+pal2 <- wesanderson::wes_palette("Moonrise3")
 
 round_dec <- function(x, n_dec = 3) {
   if (is.numeric(x)) {

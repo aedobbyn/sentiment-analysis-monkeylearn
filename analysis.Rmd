@@ -42,6 +42,7 @@ library(kableExtra)
 
 ```{r styles}
 pal <- wesanderson::wes_palette("Rushmore1")
+pal2 <- wesanderson::wes_palette("Moonrise3")
 
 round_dec <- function(x, n_dec = 3) {
   if (is.numeric(x)) {
@@ -215,7 +216,7 @@ ggplot(sentiment_breakdown) +
   ggtitle("Sentiment Breakdown, Overall") +
   labs(x = "Sentiment", y = "Percent", fill = "Sentiment") +
   theme_bw() +
-  scale_fill_manual(values = pal)
+  scale_fill_manual(values = pal2)
 ```
 
 <br>
@@ -567,7 +568,9 @@ Words with more positive sentiments tend to occur in more positive opinion units
 <br>
 
 ```{r, echo=FALSE}
-ggplot(dat_tokenized_unnested) +
+ggplot(dat_tokenized_unnested %>% 
+         filter(sentiment != "Neutral")
+       ) +
   geom_density(aes(score_sentiment, fill = 
                      fct_relevel(sentiment, c("Positive", "Neutral", "Negative"))), 
                adjust = 3) +
@@ -575,10 +578,12 @@ ggplot(dat_tokenized_unnested) +
   ggtitle("Word sentiment distribution by document sentiment") +
   labs(x = "Word sentiment", y = "Density", fill = "Sentiment") +
   theme_minimal() +
-  scale_fill_manual(values = pal)
+  scale_fill_manual(values = pal2)
 ```
 
 <br>
+
+Indeed on inspection it looks like the Negative distribution is heavier on the lower word sentiment side of the spectrum.
 
 As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
 

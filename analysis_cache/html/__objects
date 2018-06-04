@@ -51,4 +51,4 @@ dat_clean	dat_clean	probability_cutoff
 sentiment_breakdown	sentiment_breakdown
 sentiment_breakdown_graph	
 sentiment_by_category_summary	sentiment_by_category_summary	tertiles	.analysis_cache/html/sentiment_by_category_summary_4216fd02a2aa79da874dc8faf67ecefa_meta
-styles	add_kable	pal	round_dec
+styles	add_kable	pal	pal2	round_dec
