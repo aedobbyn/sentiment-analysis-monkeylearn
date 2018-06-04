@@ -28,6 +28,7 @@ library(knitr)
 library(dobtools)
 library(tidytext)
 library(kableExtra)
+library(hrbrthemes)
 ```
 
 
@@ -1687,6 +1688,8 @@ Words with more positive sentiments tend to occur in more positive opinion units
 
 <br>
 
+Indeed on inspection it looks like the Negative distribution is heavier on the lower word sentiment side of the spectrum.
+
 As a control, we can check whether words that appear at the beginning of the alphabet tend to get higher sentiment scores. (I don't know of a reason to suspect this might be the case which is why I'm treating it as a control but maybe there is a psycholinguist out there who can set me straight?)
 
 We'll extract just the first letter of the word and assign it the number of the alphabet from 1 to 24.
@@ -1727,7 +1730,7 @@ And then plot the word's sentiment as scored on the `AFINN` scale. The black das
 
 
 
-(In case you're curious, the statistical relationship isn't significant either, as we'd expect, *b = 0.04, p = 0.34*.)
+(In case you're curious, the statistical relationship isn't significant either in a linear model, as we'd expect (*b = 0.04, p = 0.34*).)
 
 
 <br>
@@ -1736,7 +1739,9 @@ And then plot the word's sentiment as scored on the `AFINN` scale. The black das
 
 
 
-We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for everything after `word` and up until the first period.
+If we're going to dive into text data let's really dive into text data and let the users complete our sentences for us. To get super granular, we can comb through reviews for specific words that might be part of a telling sentence and pluck out the phrases that follow those words. This affords us almost a question and answer session between us and the reviewers. We ask what they <blank> and they tell us, in their own words.
+
+In our `search_for` function below, we ask for the all text of a review's content after `word` and up until the first period.
 
 We might also want to pull out a category or categories if they exist in the phrase. To that end we'll make a regex for all of the categories MonkeyLearn has identified (except Other which seems uninteresting):
  
@@ -1750,7 +1755,7 @@ category_reg <-
 ```
 
 
-We can make something reusable like:
+We can make something reusable like this. 
 
 
 ```r

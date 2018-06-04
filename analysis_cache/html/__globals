@@ -1,4 +1,4 @@
-unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext	kableExtra
+unnamed-chunk-1	library	here	tidyverse	rvest	monkeylearn	glue	knitr	dobtools	tidytext	kableExtra	hrbrthemes
 source_in	all_reviews_slack	read_csv	here	reviews_with_subratings_nested	reviews_with_subratings_unnested	data_dir	glue	dat	read_rds	rating_perc	%>%	as.numeric
 unnamed-chunk-2	dat	%>%	slice	add_kable
 unnamed-chunk-3	dat	%>%	mutate	str_c	review_num	page_num	uuids	arrange	nest	doc_identifier	nrow	.	row_number	select	data	left_join
@@ -8,9 +8,9 @@ unnamed-chunk-5	dat	sentiment	%>%	fct_relevel	c
 unnamed-chunk-6	dat	category	%>%	factor	levels
 unnamed-chunk-7	ratings_by_sentiment	dat_clean	%>%	distinct	doc_uuid	group_by	sentiment	summarise	mean	rating_perc	add_kable
 unnamed-chunk-8	bad_sentiment_upper_bound	sentiment_by_category_summary	%>%	filter	name	pull	value	good_sentiment_lower_bound	sentiment_by_category	mutate	case_when	mean_sentiment	factor	add_kable	sentiment_valence_order	c	sentiment_valence	fct_relevel
-unnamed-chunk-9	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	sentiment_valence	theme_bw	ggtitle	labs	scale_fill_manual	pal	coord_flip
+unnamed-chunk-9	ggplot	sentiment_by_category	geom_bar	aes	fct_reorder	category	mean_sentiment	sentiment_valence	theme_ipsum	ggtitle	labs	scale_fill_manual	pal	coord_flip
 unnamed-chunk-10	category_freq	dat_clean	%>%	group_by	category	count	rename	n	left_join	sentiment_by_category
-unnamed-chunk-11	ggplot	category_freq	geom_bar	aes	fct_reorder	category	n_opinion_units	sentiment_valence	theme_bw	ggtitle	labs	scale_fill_manual	pal	coord_flip
+unnamed-chunk-11	ggplot	category_freq	geom_bar	aes	fct_reorder	category	n_opinion_units	sentiment_valence	theme_ipsum	ggtitle	labs	scale_fill_manual	pal	coord_flip
 unnamed-chunk-12	sentiment_by_category_weighted	category_freq	%>%	mutate	mean_sentiment	n_opinion_units	arrange	desc	weighted_sentiment	add_kable
 unnamed-chunk-13	all_reviews_slack	sub_ratings	%>%	sample
 unnamed-chunk-14	dat	sub_ratings_split	%>%	sample
@@ -27,7 +27,7 @@ unnamed-chunk-24	lm	dat_tokenized_unnested	%>%	drop_na	sentiment_num	score_senti
 unnamed-chunk-25	ggplot	dat_tokenized_unnested	%>%	filter	sentiment	geom_density	aes	score_sentiment	fct_relevel	c	facet_wrap	ggtitle	labs	theme_minimal	scale_fill_manual	pal2
 unnamed-chunk-26	assign_number	length	l	%in%	letters	n	which	try_assign_number	possibly
 unnamed-chunk-27	dat_tokenized_first_letter	dat_tokenized	%>%	rowwise	mutate	substr	word	try_assign_number	first_letter
-unnamed-chunk-28	ggplot	dat_tokenized_first_letter	geom_smooth	aes	first_letter_num	score_sentiment	scale_x_continuous	letters	geom_hline	mean	ggtitle	labs	theme_bw	scale_fill_manual	pal
+unnamed-chunk-28	ggplot	dat_tokenized_first_letter	geom_smooth	aes	first_letter_num	score_sentiment	scale_x_continuous	letters	geom_hline	mean	ggtitle	labs	theme_ipsum	scale_fill_manual	pal
 unnamed-chunk-29	first_letter_lm	lm	dat_tokenized_first_letter	%>%	drop_na	first_letter_num	score_sentiment	summary	tidy	map	round_dec
 unnamed-chunk-30	replace_y	is.null	x	length	replacement
 unnamed-chunk-31	category_reg	dat_clean	category	which	%>%	tolower	unique	str_c
@@ -46,9 +46,9 @@ sentiment_by_category	sentiment_by_category	dat_clean	%>%	group_by	category	summ
 unnamed-chunk-43	pqr_complaints	%>%	filter	word	%in%	c
 unnamed-chunk-44	dat_tokenized	%>%	filter	word	%in%	c	group_by	count
 unnamed-chunk-45	dat_tokenized	%>%	filter	word	%in%	c	group_by	count
-sentiment_by_category_weighted_graph	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	factor	sentiment_valence	theme_bw	ggtitle	labs	scale_fill_manual	pal	coord_flip
+sentiment_by_category_weighted_graph	ggplot	sentiment_by_category_weighted	geom_bar	aes	fct_reorder	category	weighted_sentiment	factor	sentiment_valence	theme_ipsum	ggtitle	labs	scale_fill_manual	pal	coord_flip
 dat_clean	probability_cutoff	dat_clean	dat	%>%	filter	is.na	probability_unit	category	probability_sentiment
 sentiment_breakdown	sentiment_breakdown	dat_clean	%>%	group_by	sentiment	count	rename	n	ungroup	mutate	sum	by_sentiment	total
-sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_bw	scale_fill_manual	pal2
+sentiment_breakdown_graph	ggplot	sentiment_breakdown	geom_bar	aes	fct_relevel	sentiment	sentiment_prop	geom_text	paste0	round	scale_y_continuous	percent	ggtitle	labs	theme_ipsum
 sentiment_by_category_summary	tertiles	c	sentiment_by_category	mean_sentiment	%>%	quantile	sentiment_by_category_summary	tibble	names	add_kable
 styles	pal	wes_palette	pal2	round_dec	is.numeric	x	%>%	round	add_kable	round_decimals	df	map_dfc	replace_na	replace_na_df	capitalize	cap_df	kable	kable_styling	F	add_scrollbox	scroll_box

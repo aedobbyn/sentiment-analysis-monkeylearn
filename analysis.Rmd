@@ -37,6 +37,7 @@ library(knitr)
 library(dobtools)
 library(tidytext)
 library(kableExtra)
+library(hrbrthemes)
 ```
 
 
@@ -215,7 +216,7 @@ ggplot(sentiment_breakdown) +
   scale_y_continuous(labels = scales::percent) +
   ggtitle("Sentiment Breakdown, Overall") +
   labs(x = "Sentiment", y = "Percent", fill = "Sentiment") +
-  theme_bw() +
+  theme_ipsum() +
   scale_fill_manual(values = pal2)
 ```
 
@@ -323,7 +324,7 @@ Now we can colo(u)r the bars of our plot with those valences. This will be usefu
 ```{r, echo=FALSE}
 ggplot(sentiment_by_category) +
   geom_bar(aes(fct_reorder(category, mean_sentiment), mean_sentiment, fill = sentiment_valence), stat = "identity") +
-  theme_bw() +
+  theme_ipsum() +
   ggtitle("Sentiment by Category") +
   labs(x = "Category", y = "Sentiment", fill = "Sentiment Valence") +
   scale_fill_manual(values = pal) +
@@ -353,7 +354,7 @@ category_freq <-
 ggplot(category_freq) +
   geom_bar(aes(fct_reorder(category, n_opinion_units), n_opinion_units,
                fill = sentiment_valence), stat = "identity") +
-  theme_bw() +
+  theme_ipsum() +
   ggtitle("Category Mentions") +
   labs(x = "Category", y = "N", fill = "Sentiment Valence") +
   scale_fill_manual(values = pal) +
@@ -386,7 +387,7 @@ sentiment_by_category_weighted %>%
 ggplot(sentiment_by_category_weighted) +
   geom_bar(aes(fct_reorder(category, weighted_sentiment), weighted_sentiment,
                fill = factor(sentiment_valence)), stat = "identity") +
-  theme_bw() +
+  theme_ipsum() +
   ggtitle("Category Sentiment, Weighted") +
   labs(x = "Category", y = "Weighted Sentiment", fill = "Sentiment Valence") +
   scale_fill_manual(values = pal) +
@@ -631,7 +632,7 @@ ggplot(dat_tokenized_first_letter) +
   #               label = "foo")) +
   ggtitle("Relationship between a word's first letter and its sentiment") +
   labs(x = "First letter", y = "Sentiment", subtitle = "as measured by AFINN scale") +
-  theme_bw() +
+  theme_ipsum() +
   scale_fill_manual(values = pal)
 ```
 
@@ -648,7 +649,7 @@ first_letter_lm <-
   map(round_dec)
 ```
 
-(In case you're curious, the statistical relationship isn't significant either, as we'd expect, *b = `r first_letter_lm$estimate[2]`, p = `r first_letter_lm$p.value[2]`*.)
+(In case you're curious, the statistical relationship isn't significant either in a linear model, as we'd expect (*b = `r first_letter_lm$estimate[2]`, p = `r first_letter_lm$p.value[2]`*).)
 
 
 <br>
@@ -666,7 +667,9 @@ replace_y <- function(x, replacement = NA_character_) {
 }
 ```
 
-We might be interested in phrases that follow specific words like "use" or "don't use". Here we ask for everything after `word` and up until the first period.
+If we're going to dive into text data let's really dive into text data and let the users complete our sentences for us. To get super granular, we can comb through reviews for specific words that might be part of a telling sentence and pluck out the phrases that follow those words. This affords us almost a question and answer session between us and the reviewers. We ask what they <blank> and they tell us, in their own words.
+
+In our `search_for` function below, we ask for the all text of a review's content after `word` and up until the first period.
 
 We might also want to pull out a category or categories if they exist in the phrase. To that end we'll make a regex for all of the categories MonkeyLearn has identified (except Other which seems uninteresting):
  
@@ -679,7 +682,7 @@ category_reg <-
 ```
 
 
-We can make something reusable like:
+We can make something reusable like this. 
 
 ```{r}
 search_for <- function(df = dat_clean, col = content, word, 
