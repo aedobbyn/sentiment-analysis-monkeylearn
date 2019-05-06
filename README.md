@@ -5,7 +5,7 @@
 
 <br>
 
-This is an analysis of reviews of Slack from Capterra processed using the [MonkeyLearn](https://monkeylearn.com/) API via the [`monkeylearn`](https://github.com/ropensci/monkeylearn) R package.
+This is an analysis of reviews of Slack from Capterra processed using the [MonkeyLearn](https://monkeylearn.com/) API via the [`monkeylearn`](https://github.com/ropensci/monkeylearn) R package. It was adapted and published for the [MonkeyLearn blog](https://monkeylearn.com/blog/sentiment-analysis-using-r/).
 
 **Part 1**: scraping and categorizing in [`prep.md`](https://github.com/aedobbyn/sentiment-analysis-monkeylearn/blob/master/prep.md)
 
